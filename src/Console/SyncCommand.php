@@ -6,6 +6,7 @@ namespace SanderMuller\PackageBoost\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Laravel\Boost\BoostServiceProvider;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 
@@ -221,7 +222,7 @@ class SyncCommand extends Command
 
     private function syncMcp(string $root): void
     {
-        if (! class_exists(\Laravel\Boost\BoostServiceProvider::class)) {
+        if (! class_exists(BoostServiceProvider::class)) {
             $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
 
             return;
