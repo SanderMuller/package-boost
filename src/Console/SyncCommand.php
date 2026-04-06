@@ -78,8 +78,12 @@ class SyncCommand extends Command
             return;
         }
 
+        $skillNames = array_map('basename', $skills);
+
         foreach (self::SKILL_TARGETS as $target) {
             $targetDir = $root.DIRECTORY_SEPARATOR.$target;
+
+            $this->removeStaleSkills($targetDir, $skillNames);
 
             foreach ($skills as $skillPath) {
                 $skillName = basename($skillPath);
@@ -93,6 +97,28 @@ class SyncCommand extends Command
         $skillCount = count($skills);
         $targetCount = count(self::SKILL_TARGETS);
         $this->components->info("Synced {$skillCount} skills to {$targetCount} agent directories.");
+    }
+
+    /**
+     * @param  array<int, string>  $currentSkillNames
+     */
+    private function removeStaleSkills(string $targetDir, array $currentSkillNames): void
+    {
+        if (! is_dir($targetDir)) {
+            return;
+        }
+
+        $existing = glob($targetDir.DIRECTORY_SEPARATOR.'*', GLOB_ONLYDIR);
+
+        if ($existing === false) {
+            return;
+        }
+
+        foreach ($existing as $dir) {
+            if (! in_array(basename($dir), $currentSkillNames, true)) {
+                File::deleteDirectory($dir);
+            }
+        }
     }
 
     private function syncGuidelines(string $root): void
