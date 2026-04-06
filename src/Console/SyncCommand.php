@@ -20,13 +20,13 @@ class SyncCommand extends Command
 
     protected $description = 'Sync .ai/ skills and guidelines to agent directories';
 
-    /** @var array<string, string> */
+    /** @var array<int, string> */
     private const SKILL_TARGETS = [
         '.claude/skills',
         '.github/skills',
     ];
 
-    /** @var array<string, string> */
+    /** @var array<int, string> */
     private const GUIDELINE_TARGETS = [
         'CLAUDE.md',
         'AGENTS.md',
@@ -71,8 +71,6 @@ class SyncCommand extends Command
             return;
         }
 
-        $count = 0;
-
         foreach (self::SKILL_TARGETS as $target) {
             $targetDir = $root.DIRECTORY_SEPARATOR.$target;
 
@@ -82,7 +80,6 @@ class SyncCommand extends Command
 
                 File::ensureDirectoryExists($dest);
                 File::copyDirectory($skillPath, $dest);
-                $count++;
             }
         }
 
@@ -138,10 +135,10 @@ class SyncCommand extends Command
         $pattern = '/<package-boost-guidelines>.*?<\/package-boost-guidelines>/s';
 
         if (file_exists($filePath)) {
-            $content = file_get_contents($filePath);
+            $content = (string) file_get_contents($filePath);
 
             if (preg_match($pattern, $content)) {
-                $content = preg_replace($pattern, $block, $content, 1);
+                $content = (string) preg_replace($pattern, $block, $content, 1);
             } else {
                 $content = rtrim($content)."\n\n".$block."\n";
             }
@@ -155,20 +152,22 @@ class SyncCommand extends Command
 
     private function syncMcp(string $root): void
     {
+        if (! class_exists(\Laravel\Boost\BoostServiceProvider::class)) {
+            $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
+
+            return;
+        }
+
         $mcpPath = $root.DIRECTORY_SEPARATOR.'.mcp.json';
 
         $config = file_exists($mcpPath)
-            ? json_decode(file_get_contents($mcpPath), true) ?? []
+            ? json_decode((string) file_get_contents($mcpPath), true) ?? []
             : [];
 
-        $hasBoost = class_exists(\Laravel\Boost\BoostServiceProvider::class);
-
-        if ($hasBoost) {
-            $config['mcpServers']['laravel-boost'] = [
-                'command' => 'vendor/bin/testbench',
-                'args' => ['boost:mcp'],
-            ];
-        }
+        $config['mcpServers']['laravel-boost'] = [
+            'command' => 'vendor/bin/testbench',
+            'args' => ['boost:mcp'],
+        ];
 
         file_put_contents(
             $mcpPath,
