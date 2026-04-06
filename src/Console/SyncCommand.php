@@ -89,14 +89,50 @@ class SyncCommand extends Command
                 $skillName = basename($skillPath);
                 $dest = $targetDir.DIRECTORY_SEPARATOR.$skillName;
 
-                File::ensureDirectoryExists($dest);
-                File::copyDirectory($skillPath, $dest);
+                $this->linkOrCopy($skillPath, $dest);
             }
         }
 
         $skillCount = count($skills);
         $targetCount = count(self::SKILL_TARGETS);
         $this->components->info("Synced {$skillCount} skills to {$targetCount} agent directories.");
+    }
+
+    private function linkOrCopy(string $source, string $dest): void
+    {
+        if (file_exists($dest) || is_link($dest)) {
+            is_link($dest) ? File::delete($dest) : File::deleteDirectory($dest);
+        }
+
+        File::ensureDirectoryExists(dirname($dest));
+
+        $relativePath = $this->relativePath(realpath($source), dirname($dest));
+
+        if (@symlink($relativePath, $dest)) {
+            return;
+        }
+
+        File::ensureDirectoryExists($dest);
+        File::copyDirectory($source, $dest);
+    }
+
+    private function relativePath(string $target, string $from): string
+    {
+        $target = str_replace('\\', '/', $target);
+        $from = str_replace('\\', '/', realpath($from) ?: $from);
+
+        $targetParts = explode('/', $target);
+        $fromParts = explode('/', $from);
+
+        $common = 0;
+
+        while ($common < count($targetParts) && $common < count($fromParts) && $targetParts[$common] === $fromParts[$common]) {
+            $common++;
+        }
+
+        $ups = count($fromParts) - $common;
+
+        return str_repeat('../', $ups).implode('/', array_slice($targetParts, $common));
     }
 
     /**
@@ -108,15 +144,15 @@ class SyncCommand extends Command
             return;
         }
 
-        $existing = glob($targetDir.DIRECTORY_SEPARATOR.'*', GLOB_ONLYDIR);
+        $existing = glob($targetDir.DIRECTORY_SEPARATOR.'*');
 
         if ($existing === false) {
             return;
         }
 
-        foreach ($existing as $dir) {
-            if (! in_array(basename($dir), $currentSkillNames, true)) {
-                File::deleteDirectory($dir);
+        foreach ($existing as $entry) {
+            if (! in_array(basename($entry), $currentSkillNames, true)) {
+                is_link($entry) ? File::delete($entry) : File::deleteDirectory($entry);
             }
         }
     }
