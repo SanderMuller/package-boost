@@ -8,7 +8,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Laravel\Boost\BoostServiceProvider;
 use Symfony\Component\Finder\Finder;
-use Symfony\Component\Finder\SplFileInfo;
 
 class SyncCommand extends Command
 {
@@ -35,17 +34,20 @@ class SyncCommand extends Command
     public function handle(): int
     {
         $root = $this->resolvePackageRoot();
-        $syncAll = ! $this->option('skills') && ! $this->option('guidelines') && ! $this->option('mcp');
+        $syncSkills = $this->option('skills') === true;
+        $syncGuidelines = $this->option('guidelines') === true;
+        $syncMcp = $this->option('mcp') === true;
+        $syncAll = ! $syncSkills && ! $syncGuidelines && ! $syncMcp;
 
-        if ($syncAll || $this->option('skills')) {
+        if ($syncAll || $syncSkills) {
             $this->syncSkills($root);
         }
 
-        if ($syncAll || $this->option('guidelines')) {
+        if ($syncAll || $syncGuidelines) {
             $this->syncGuidelines($root);
         }
 
-        if ($syncAll || $this->option('mcp')) {
+        if ($syncAll || $syncMcp) {
             $this->syncMcp($root);
         }
 
@@ -63,7 +65,7 @@ class SyncCommand extends Command
 
     private function syncSkills(string $root): void
     {
-        $sourceDir = $root.DIRECTORY_SEPARATOR.'.ai'.DIRECTORY_SEPARATOR.'skills';
+        $sourceDir = $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills';
 
         if (! is_dir($sourceDir)) {
             $this->components->warn('No .ai/skills/ directory found.');
@@ -71,7 +73,7 @@ class SyncCommand extends Command
             return;
         }
 
-        $skills = glob($sourceDir.DIRECTORY_SEPARATOR.'*', GLOB_ONLYDIR);
+        $skills = glob($sourceDir . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
 
         if ($skills === false || $skills === []) {
             $this->components->warn('No skills found in .ai/skills/.');
@@ -79,16 +81,16 @@ class SyncCommand extends Command
             return;
         }
 
-        $skillNames = array_map('basename', $skills);
+        $skillNames = array_map(basename(...), $skills);
 
         foreach (self::SKILL_TARGETS as $target) {
-            $targetDir = $root.DIRECTORY_SEPARATOR.$target;
+            $targetDir = $root . DIRECTORY_SEPARATOR . $target;
 
             $this->removeStaleSkills($targetDir, $skillNames);
 
             foreach ($skills as $skillPath) {
                 $skillName = basename($skillPath);
-                $dest = $targetDir.DIRECTORY_SEPARATOR.$skillName;
+                $dest = $targetDir . DIRECTORY_SEPARATOR . $skillName;
 
                 $this->linkOrCopy($skillPath, $dest);
             }
@@ -107,7 +109,8 @@ class SyncCommand extends Command
 
         File::ensureDirectoryExists(dirname($dest));
 
-        $relativePath = $this->relativePath(realpath($source) ?: $source, dirname($dest));
+        $resolvedSource = realpath($source);
+        $relativePath = $this->relativePath($resolvedSource !== false ? $resolvedSource : $source, dirname($dest));
 
         if (@symlink($relativePath, $dest)) {
             return;
@@ -120,7 +123,8 @@ class SyncCommand extends Command
     private function relativePath(string $target, string $from): string
     {
         $target = str_replace('\\', '/', $target);
-        $from = str_replace('\\', '/', realpath($from) ?: $from);
+        $resolvedFrom = realpath($from);
+        $from = str_replace('\\', '/', $resolvedFrom !== false ? $resolvedFrom : $from);
 
         $targetParts = explode('/', $target);
         $fromParts = explode('/', $from);
@@ -128,12 +132,12 @@ class SyncCommand extends Command
         $common = 0;
 
         while ($common < count($targetParts) && $common < count($fromParts) && $targetParts[$common] === $fromParts[$common]) {
-            $common++;
+            ++$common;
         }
 
         $ups = count($fromParts) - $common;
 
-        return str_repeat('../', $ups).implode('/', array_slice($targetParts, $common));
+        return str_repeat('../', $ups) . implode('/', array_slice($targetParts, $common));
     }
 
     /**
@@ -145,7 +149,7 @@ class SyncCommand extends Command
             return;
         }
 
-        $existing = glob($targetDir.DIRECTORY_SEPARATOR.'*');
+        $existing = glob($targetDir . DIRECTORY_SEPARATOR . '*');
 
         if ($existing === false) {
             return;
@@ -160,7 +164,7 @@ class SyncCommand extends Command
 
     private function syncGuidelines(string $root): void
     {
-        $sourceDir = $root.DIRECTORY_SEPARATOR.'.ai'.DIRECTORY_SEPARATOR.'guidelines';
+        $sourceDir = $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'guidelines';
 
         if (! is_dir($sourceDir)) {
             $this->components->warn('No .ai/guidelines/ directory found.');
@@ -179,11 +183,11 @@ class SyncCommand extends Command
         $block = "<package-boost-guidelines>\n{$guidelines}\n</package-boost-guidelines>";
 
         foreach (self::GUIDELINE_TARGETS as $target) {
-            $filePath = $root.DIRECTORY_SEPARATOR.$target;
+            $filePath = $root . DIRECTORY_SEPARATOR . $target;
             $this->writeGuidelineBlock($filePath, $block);
         }
 
-        $this->components->info('Synced guidelines to '.count(self::GUIDELINE_TARGETS).' agent files.');
+        $this->components->info('Synced guidelines to ' . count(self::GUIDELINE_TARGETS) . ' agent files.');
     }
 
     private function collectGuidelines(string $dir): string
@@ -194,10 +198,17 @@ class SyncCommand extends Command
             ->name('*.md')
             ->sortByName();
 
-        return collect($finder)
-            ->map(fn (SplFileInfo $file): string => trim($file->getContents()))
-            ->filter(fn (string $content): bool => $content !== '')
-            ->implode("\n\n");
+        $parts = [];
+
+        foreach ($finder as $file) {
+            $content = trim($file->getContents());
+
+            if ($content !== '') {
+                $parts[] = $content;
+            }
+        }
+
+        return implode("\n\n", $parts);
     }
 
     private function writeGuidelineBlock(string $filePath, string $block): void
@@ -207,14 +218,14 @@ class SyncCommand extends Command
         if (file_exists($filePath)) {
             $content = (string) file_get_contents($filePath);
 
-            if (preg_match($pattern, $content)) {
+            if (preg_match($pattern, $content) === 1) {
                 $content = (string) preg_replace($pattern, $block, $content, 1);
             } else {
-                $content = rtrim($content)."\n\n".$block."\n";
+                $content = rtrim($content) . "\n\n" . $block . "\n";
             }
         } else {
             File::ensureDirectoryExists(dirname($filePath));
-            $content = $block."\n";
+            $content = $block . "\n";
         }
 
         file_put_contents($filePath, $content);
@@ -228,8 +239,9 @@ class SyncCommand extends Command
             return;
         }
 
-        $mcpPath = $root.DIRECTORY_SEPARATOR.'.mcp.json';
+        $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
 
+        /** @var array<string, array<string, mixed>> $config */
         $config = file_exists($mcpPath)
             ? json_decode((string) file_get_contents($mcpPath), true) ?? []
             : [];
@@ -241,7 +253,7 @@ class SyncCommand extends Command
 
         file_put_contents(
             $mcpPath,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
         );
 
         $this->components->info('Synced MCP config to .mcp.json.');
