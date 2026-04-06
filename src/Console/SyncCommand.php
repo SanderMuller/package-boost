@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\File;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 
-use function Orchestra\Testbench\package_path;
-
 class SyncCommand extends Command
 {
     protected $signature = 'package-boost:sync
@@ -35,7 +33,7 @@ class SyncCommand extends Command
 
     public function handle(): int
     {
-        $root = package_path();
+        $root = $this->resolvePackageRoot();
         $syncAll = ! $this->option('skills') && ! $this->option('guidelines') && ! $this->option('mcp');
 
         if ($syncAll || $this->option('skills')) {
@@ -51,6 +49,15 @@ class SyncCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function resolvePackageRoot(): string
+    {
+        if (function_exists('Orchestra\Testbench\package_path')) {
+            return \Orchestra\Testbench\package_path();
+        }
+
+        return (string) getcwd();
     }
 
     private function syncSkills(string $root): void
