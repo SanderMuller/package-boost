@@ -1,0 +1,12 @@
+composer.lock
+/vendor
+/node_modules
+.cache
+/build
+/.idea
+/.fleet
+/.vscode
+phpunit.xml
+phpstan.neon
+testbench.yaml
+/coverage
