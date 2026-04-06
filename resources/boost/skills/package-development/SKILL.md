@@ -5,77 +5,61 @@ description: "Use when developing Laravel packages with Orchestra Testbench. Act
 
 # Laravel Package Development
 
-## Context
+This is a Laravel **package**, not a full application. There is no `artisan`, no `app/` directory, no database by default.
 
-This is a Laravel **package**, not a full Laravel application. It uses Orchestra Testbench to provide a Laravel environment for testing and development.
+## Use `vendor/bin/testbench` Instead of `artisan`
 
-## Key Differences from Application Development
-
-- **No `artisan`** — use `vendor/bin/testbench` instead of `php artisan`
-- **No `app/` directory** — source code lives in `src/`, tests in `tests/`
-- **No database** — unless configured in `testbench.yaml`
-- **No routes, views, or controllers** — unless the package provides them
-- **Cross-version support** — code must work across multiple PHP and Laravel versions
-
-## Commands
-
-| Instead of | Use |
+| Do NOT use | Use instead |
 |---|---|
-| `php artisan test` | `vendor/bin/pest` or `vendor/bin/testbench package:test` |
-| `php artisan make:*` | Create files manually following package conventions |
+| `php artisan test` | `vendor/bin/pest` |
 | `php artisan tinker` | `vendor/bin/testbench tinker` |
+| `php artisan make:*` | Create files manually in `src/` |
 | `php artisan boost:mcp` | `vendor/bin/testbench boost:mcp` |
+| `php artisan boost:install` | `vendor/bin/testbench boost:install` |
 
-## Quality Checks
+## Source Layout
 
-```bash
-# Code style
-vendor/bin/pint --dirty --format agent
+- `src/` — package source code (PSR-4 autoloaded)
+- `tests/` — test suite
+- `config/` — publishable config files (if any)
+- `resources/` — views, translations, Boost skills
+- `database/` — migrations and factories (if any)
 
-# Static analysis
-vendor/bin/phpstan analyse --memory-limit=2G
-
-# Tests
-vendor/bin/pest
-
-# All quality checks (if configured)
-composer qa
-```
-
-## Service Provider
-
-Packages register functionality via a service provider. Check `composer.json` for the `extra.laravel.providers` key to find it. The service provider is auto-discovered by Laravel applications that install the package.
-
-## Testbench Configuration
-
-`testbench.yaml` configures the test environment:
-- `providers` — additional service providers to load
-- `migrations` — migration paths
-- `seeders` — database seeders
+Check `composer.json` `autoload.psr-4` for the exact namespace mapping.
 
 ## Testing
 
-- Tests use `Orchestra\Testbench\TestCase` as the base class (or Pest with testbench plugin)
-- The test environment provides a full Laravel application context
-- Use factories and in-memory SQLite for database testing
+Tests run via Pest or PHPUnit with Orchestra Testbench providing the Laravel application context. The base test case is typically `Orchestra\Testbench\TestCase`.
+
+To register the package's service provider for tests, look for `getPackageProviders()` in the test base class or `testbench.yaml` `providers`.
 
 ## Cross-Version Compatibility
 
-Always consider:
-- **PHP versions** — check `composer.json` `require.php` constraint
-- **Laravel versions** — check `illuminate/*` constraints
-- Avoid using features only available in newer versions unless guarded
-- CI matrix tests across all supported version combinations
+**Always check `composer.json` before using version-specific features:**
 
-## AI Skills and Guidelines
+- `require.php` — supported PHP versions
+- `require.illuminate/*` — supported Laravel versions
 
-This package uses `package-boost` for AI tooling. The `.ai/` directory is the source of truth:
+When the package supports multiple Laravel versions:
+- Do NOT use features exclusive to newer versions without a version guard
+- Run the full test suite to catch regressions — CI tests across the full matrix
+- Check sibling files for patterns used to handle version differences
+
+## Syncing AI Skills and Guidelines
+
+The `.ai/` directory is the source of truth for AI tooling:
 
 ```
 .ai/
-├── guidelines/     # Project-wide AI instructions (*.md)
-└── skills/         # On-demand skill definitions
+├── guidelines/     # Always-loaded context (*.md)
+└── skills/         # On-demand skills
     └── {name}/SKILL.md
 ```
 
-After editing `.ai/` files, run `vendor/bin/testbench package-boost:sync` to publish them to `.claude/skills/`, `.github/skills/`, and guideline files.
+After editing files in `.ai/`, sync to agent directories:
+
+```bash
+vendor/bin/testbench package-boost:sync
+```
+
+This copies skills to `.claude/skills/` and `.github/skills/`, and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`.

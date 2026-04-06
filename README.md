@@ -1,10 +1,13 @@
 # Package Boost
 
-AI-assisted development tooling for Laravel package developers.
+AI tooling for Laravel package developers. Bridges the gap between [Laravel Boost](https://laravel.com/docs/boost) (designed for applications) and package development with [Orchestra Testbench](https://packages.tools/testbench).
 
-Syncs `.ai/skills/` and `.ai/guidelines/` to agent directories (`.claude/skills/`, `.github/skills/`, `CLAUDE.md`, `AGENTS.md`) so AI tools like Claude Code, GitHub Copilot, and Codex can use them during package development.
+## What It Does
 
-Also ships a `package-development` skill via Laravel Boost, teaching AI agents how to work with Testbench, package structure, and cross-version compatibility.
+- Syncs `.ai/skills/` to `.claude/skills/` and `.github/skills/` so Claude Code, GitHub Copilot, and Codex can use them
+- Syncs `.ai/guidelines/` into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`
+- Generates `.mcp.json` pointing to `vendor/bin/testbench boost:mcp` when Boost is installed
+- Ships a `package-development` skill that teaches AI agents how to work with Testbench
 
 ## Installation
 
@@ -21,30 +24,36 @@ providers:
 
 ## Usage
 
-Create your skills in `.ai/skills/` and guidelines in `.ai/guidelines/`, then sync:
+### 1. Create your skills and guidelines
+
+```
+.ai/
+├── guidelines/
+│   └── my-conventions.md
+└── skills/
+    └── my-skill/
+        └── SKILL.md
+```
+
+### 2. Sync to agent directories
 
 ```bash
 vendor/bin/testbench package-boost:sync
 ```
 
-This copies skills to `.claude/skills/` and `.github/skills/`, and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`.
+### 3. Commit the generated files
 
-### Options
+The sync copies your `.ai/` files to the directories each AI tool expects. Commit both the source (`.ai/`) and the generated files (`.claude/`, `.github/`, `CLAUDE.md`, `AGENTS.md`).
+
+### Selective sync
 
 ```bash
-# Sync only skills
 vendor/bin/testbench package-boost:sync --skills
-
-# Sync only guidelines
 vendor/bin/testbench package-boost:sync --guidelines
-
-# Sync only MCP config
 vendor/bin/testbench package-boost:sync --mcp
 ```
 
 ### Composer script
-
-Add to your `composer.json` for convenience:
 
 ```json
 {
@@ -54,11 +63,23 @@ Add to your `composer.json` for convenience:
 }
 ```
 
-## Laravel Boost integration
+## With Laravel Boost
 
-When `laravel/boost` is also installed, `package-boost:sync --mcp` generates the correct MCP config pointing to `vendor/bin/testbench boost:mcp`.
+When `laravel/boost` is also installed as a dev dependency, you get:
 
-The package also ships a `package-development` skill via `resources/boost/skills/` that Boost auto-discovers, teaching AI agents about Testbench workflows and package conventions.
+- **MCP server** — `package-boost:sync --mcp` generates the correct `.mcp.json` config
+- **Doc search** — Boost's `search-docs` tool works out of the box via Testbench
+- **Auto-discovered skill** — the `package-development` skill ships via `resources/boost/skills/` and is picked up by Boost automatically
+
+## How It Differs from Boost
+
+| | Boost | Package Boost |
+|---|---|---|
+| **For** | Laravel applications | Laravel packages |
+| **Runs via** | `php artisan` | `vendor/bin/testbench` |
+| **Discovers skills** | From app + vendor packages | From `.ai/` directory |
+| **Generates guidelines** | Composes from installed packages | Copies your markdown files |
+| **MCP server** | Built-in | Delegates to Boost when installed |
 
 ## License
 
