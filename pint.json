@@ -1,0 +1,12 @@
+{
+    "preset": "laravel",
+    "cache-file": ".cache/pint/pint.json",
+    "exclude": [
+        ".cache",
+        ".github",
+        "vendor"
+    ],
+    "rules": {
+        "declare_strict_types": true
+    }
+}

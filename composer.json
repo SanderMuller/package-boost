@@ -23,8 +23,11 @@
         "illuminate/support": "^11.0||^12.0||^13.0"
     },
     "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.14",
         "orchestra/testbench": "^9.0||^10.0",
-        "pestphp/pest": "^3.0||^4.0"
+        "pestphp/pest": "^3.0||^4.0",
+        "phpstan/extension-installer": "^1.4"
     },
     "autoload": {
         "psr-4": {
@@ -43,10 +46,20 @@
             ]
         }
     },
+    "scripts": {
+        "phpstan": "vendor/bin/phpstan analyse --memory-limit=2G",
+        "format": "vendor/bin/pint",
+        "test": "vendor/bin/pest",
+        "qa": [
+            "@format",
+            "@phpstan"
+        ]
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "pestphp/pest-plugin": true
+            "pestphp/pest-plugin": true,
+            "phpstan/extension-installer": true
         }
     },
     "minimum-stability": "dev",

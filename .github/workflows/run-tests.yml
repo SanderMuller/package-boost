@@ -1,0 +1,54 @@
+name: Tests
+
+on:
+  push:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/run-tests.yml'
+  pull_request:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/run-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    strategy:
+      fail-fast: true
+      matrix:
+        php: [8.4, 8.3, 8.2]
+        laravel: ['13.*', '12.*', '11.*']
+        stability: [prefer-stable]
+        exclude:
+          - php: 8.2
+            laravel: '13.*'
+
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip
+          coverage: none
+
+      - name: Install dependencies
+        uses: ramsey/composer-install@v4
+        with:
+          dependency-versions: ${{ matrix.stability }}
+          composer-options: --with="illuminate/console:${{ matrix.laravel }}" --with="illuminate/support:${{ matrix.laravel }}"
+
+      - name: Execute tests
+        run: vendor/bin/pest --ci
