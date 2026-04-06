@@ -106,7 +106,7 @@ class SyncCommand extends Command
 
         File::ensureDirectoryExists(dirname($dest));
 
-        $relativePath = $this->relativePath(realpath($source), dirname($dest));
+        $relativePath = $this->relativePath(realpath($source) ?: $source, dirname($dest));
 
         if (@symlink($relativePath, $dest)) {
             return;

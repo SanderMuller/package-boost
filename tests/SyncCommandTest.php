@@ -22,13 +22,15 @@ it('syncs skills to agent directories', function (): void {
         ->expectsOutputToContain('Synced 1 skills to 2 agent directories')
         ->assertSuccessful();
 
+    expect(is_link(package_path('.claude/skills/test-skill')))->toBeTrue();
+    expect(is_link(package_path('.github/skills/test-skill')))->toBeTrue();
     expect(File::exists(package_path('.claude/skills/test-skill/SKILL.md')))->toBeTrue();
     expect(File::exists(package_path('.github/skills/test-skill/SKILL.md')))->toBeTrue();
 
     // Clean up
     File::deleteDirectory(package_path('.ai/skills/test-skill'));
-    File::deleteDirectory(package_path('.claude/skills/test-skill'));
-    File::deleteDirectory(package_path('.github/skills/test-skill'));
+    File::delete(package_path('.claude/skills/test-skill'));
+    File::delete(package_path('.github/skills/test-skill'));
 });
 
 it('syncs guidelines to agent files', function (): void {
@@ -66,12 +68,13 @@ it('removes stale skills from target directories', function (): void {
         ->assertSuccessful();
 
     expect(File::exists(package_path('.claude/skills/keep-me/SKILL.md')))->toBeTrue();
-    expect(File::exists(package_path('.claude/skills/stale-skill')))->toBeFalse();
+    expect(file_exists(package_path('.claude/skills/stale-skill')))->toBeFalse();
+    expect(is_link(package_path('.claude/skills/stale-skill')))->toBeFalse();
 
     // Clean up
     File::deleteDirectory(package_path('.ai/skills/keep-me'));
-    File::deleteDirectory(package_path('.claude/skills'));
-    File::deleteDirectory(package_path('.github/skills'));
+    File::delete(package_path('.claude/skills/keep-me'));
+    File::delete(package_path('.github/skills/keep-me'));
 });
 
 it('warns when no skills directory exists', function (): void {
