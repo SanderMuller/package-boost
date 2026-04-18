@@ -22,9 +22,8 @@ dedicated sub-table. Landed under
 
 ### Ship two more skills
 
-- `cross-version-laravel-support` — `prefer-lowest` vs
-  `prefer-stable` flows, CI matrix shape, how to handle a version
-  regression (both peers asked).
+- ~~`cross-version-laravel-support`~~ — shipped. See
+  `specs/0.5.0/cross-version-laravel-support-skill.md`.
 - `ci-matrix-troubleshooting` — usual suspects when a matrix cell
   goes red: `roave/security-advisories` floor bumps, testbench ↔
   phpunit interlock, version-excluded cells (js-store peer's most

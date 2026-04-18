@@ -63,14 +63,10 @@ top-level directories without a clear reason.
 
 ## Cross-Version Compatibility
 
-Packages usually support multiple Laravel / PHP majors simultaneously.
-
-- Before using a feature, verify it exists in every version listed in
-  `require` constraints.
-- Prefer framework APIs present across the whole range over
-  version-exclusive sugar.
-- The CI matrix runs the suite against every supported combination —
-  keep it green; do not drop a matrix leg to make a change pass.
+Supporting multiple Laravel / PHP majors is routine for packages.
+Activate the `cross-version-laravel-support` skill when adding
+version-sensitive code, and `ci-matrix-troubleshooting` when a
+matrix cell is already red.
 
 ## Conventions
 

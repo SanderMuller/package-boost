@@ -42,15 +42,9 @@ To register the package's service provider for tests, look for `getPackageProvid
 
 ## Cross-Version Compatibility
 
-**Always check `composer.json` before using version-specific features:**
-
-- `require.php` — supported PHP versions
-- `require.illuminate/*` — supported Laravel versions
-
-When the package supports multiple Laravel versions:
-- Do NOT use features exclusive to newer versions without a version guard
-- Run the full test suite to catch regressions — CI tests across the full matrix
-- Check sibling files for patterns used to handle version differences
+Activate the `cross-version-laravel-support` skill when writing or
+reviewing version-sensitive code. `ci-matrix-troubleshooting` covers
+the workflow once a matrix cell has gone red.
 
 ## Syncing AI Skills and Guidelines
 

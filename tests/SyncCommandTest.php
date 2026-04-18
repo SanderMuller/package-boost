@@ -4,6 +4,12 @@ use Illuminate\Support\Facades\File;
 
 use function Orchestra\Testbench\package_path;
 
+/** Shipped skills that `package-boost:sync` always installs. Keep in sync with `resources/boost/skills/`. */
+const SHIPPED_SKILLS = [
+    'cross-version-laravel-support',
+    'package-development',
+];
+
 beforeEach(function (): void {
     wipeArtifacts();
 });
@@ -46,6 +52,17 @@ it('ships the package-development skill even without a user .ai/skills directory
 
     expect(is_link(package_path('.claude/skills/package-development')))->toBeTrue();
     expect(File::exists(package_path('.claude/skills/package-development/SKILL.md')))->toBeTrue();
+});
+
+it('ships every skill listed in SHIPPED_SKILLS after a bare sync', function (): void {
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    foreach (SHIPPED_SKILLS as $skill) {
+        expect(is_link(package_path('.claude/skills/' . $skill)))
+            ->toBeTrue(".claude/skills/{$skill} should be symlinked")
+            ->and(File::exists(package_path('.claude/skills/' . $skill . '/SKILL.md')))
+            ->toBeTrue(".claude/skills/{$skill}/SKILL.md should be readable");
+    }
 });
 
 it('syncs shipped foundation and user guidelines into agent files', function (): void {
