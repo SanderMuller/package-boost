@@ -41,17 +41,18 @@ class SyncCommand extends Command
         $syncMcp = $this->option('mcp') === true;
         $syncAll = ! $syncSkills && ! $syncGuidelines && ! $syncMcp;
 
+        $formatter = $this->makeFormatter();
         $drift = false;
 
-        if (($syncAll || $syncSkills) && $this->runSkills($root, $check, $showUnchanged)) {
+        if (($syncAll || $syncSkills) && $this->runCategory('skills', $root, $check, $showUnchanged, $formatter)) {
             $drift = true;
         }
 
-        if (($syncAll || $syncGuidelines) && $this->runGuidelines($root, $check, $showUnchanged)) {
+        if (($syncAll || $syncGuidelines) && $this->runCategory('guidelines', $root, $check, $showUnchanged, $formatter)) {
             $drift = true;
         }
 
-        if (($syncAll || $syncMcp) && $this->runMcp($root, $check, $showUnchanged)) {
+        if (($syncAll || $syncMcp) && $this->runCategory('mcp', $root, $check, $showUnchanged, $formatter)) {
             $drift = true;
         }
 
@@ -64,6 +65,63 @@ class SyncCommand extends Command
         return self::SUCCESS;
     }
 
+    private function runCategory(string $category, string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): bool
+    {
+        $plan = match ($category) {
+            'skills' => $this->runSkillsCategory($root, $check, $showUnchanged, $formatter),
+            'guidelines' => $this->runGuidelinesCategory($root, $check, $showUnchanged, $formatter),
+            'mcp' => $this->runMcpCategory($root, $check, $showUnchanged, $formatter),
+            default => SyncPlan::skipped('unknown-category'),
+        };
+
+        return $plan->hasDrift();
+    }
+
+    private function runSkillsCategory(string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): SyncPlan
+    {
+        $sources = SyncSources::skills($root);
+        $plan = $this->planSkills($root, $sources);
+        $formatter->renderText('skills', $plan, $showUnchanged);
+
+        if (! $check) {
+            $this->applySkills($plan, $root, $sources);
+        }
+
+        return $plan;
+    }
+
+    private function runGuidelinesCategory(string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): SyncPlan
+    {
+        [$plan, $block] = $this->planGuidelines($root);
+        $formatter->renderText('guidelines', $plan, $showUnchanged);
+
+        if (! $check) {
+            $this->applyGuidelines($plan, $root, $block);
+        }
+
+        return $plan;
+    }
+
+    private function runMcpCategory(string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): SyncPlan
+    {
+        [$plan, $desired] = $this->planMcp($root);
+        $formatter->renderText('mcp', $plan, $showUnchanged);
+
+        if (! $check) {
+            $this->applyMcp($plan, $root, $desired);
+        }
+
+        return $plan;
+    }
+
+    private function makeFormatter(): SyncFormatter
+    {
+        return new SyncFormatter(
+            writeLine: fn (string $line) => $this->line($line),
+            warn: fn (string $line) => $this->components->warn($line),
+        );
+    }
+
     private function resolvePackageRoot(): string
     {
         if (function_exists('Orchestra\Testbench\package_path')) {
@@ -73,138 +131,138 @@ class SyncCommand extends Command
         return (string) getcwd();
     }
 
-    private function runSkills(string $root, bool $check, bool $showUnchanged): bool
+    /**
+     * @param  array<string, string>  $skills  name => source path
+     */
+    private function planSkills(string $root, array $skills): SyncPlan
     {
-        $skills = SyncSources::skills($root);
-
         if ($skills === []) {
-            $this->components->warn('No skills found in .ai/skills/ or shipped package-boost skills.');
-
-            return false;
+            return SyncPlan::skipped('no-sources');
         }
 
-        $this->line('Skills:');
-
-        $counts = ['new' => 0, 'updated' => 0, 'unchanged' => 0, 'removed' => 0];
+        $new = [];
+        $updated = [];
+        $unchanged = [];
+        $removed = [];
 
         foreach (self::SKILL_TARGETS as $target) {
-            $this->syncSkillsForTarget($root, $target, $skills, $check, $showUnchanged, $counts);
+            $targetDir = $root . DIRECTORY_SEPARATOR . $target;
+
+            foreach ($skills as $name => $source) {
+                $dest = $targetDir . DIRECTORY_SEPARATOR . $name;
+                [$action, $hint] = SyncReporter::planSkillAction($source, $dest);
+                $entry = new SyncAction("{$target}/{$name}", hint: $hint !== '' ? $hint : null);
+
+                match ($action) {
+                    'new' => $new[] = $entry,
+                    'updated' => $updated[] = $entry,
+                    'unchanged' => $unchanged[] = $entry,
+                };
+            }
+
+            $expectedNames = array_keys($skills);
+            foreach ($this->existingSkillNames($targetDir) as $existing) {
+                if (in_array($existing, $expectedNames, true)) {
+                    continue;
+                }
+
+                $removed[] = new SyncAction("{$target}/{$existing}");
+            }
         }
 
-        $this->line('  ' . SyncReporter::summaryLine($counts));
-
-        return $counts['new'] + $counts['updated'] + $counts['removed'] > 0;
+        return new SyncPlan(new: $new, updated: $updated, unchanged: $unchanged, removed: $removed);
     }
 
     /**
-     * @param  array<string, string>  $skills
-     * @param  array<string, int>     $counts
+     * @return array{0: SyncPlan, 1: string}  plan + composed block for write phase
      */
-    private function syncSkillsForTarget(string $root, string $target, array $skills, bool $check, bool $showUnchanged, array &$counts): void
-    {
-        $targetDir = $root . DIRECTORY_SEPARATOR . $target;
-
-        foreach ($skills as $name => $source) {
-            $dest = $targetDir . DIRECTORY_SEPARATOR . $name;
-            [$action, $hint] = SyncReporter::planSkillAction($source, $dest);
-            ++$counts[$action];
-
-            if ($action === 'unchanged' && ! $showUnchanged) {
-                continue;
-            }
-
-            $this->line('  ' . SyncReporter::glyph($action) . " {$target}/{$name}{$hint}");
-
-            if ($action !== 'unchanged' && ! $check) {
-                $this->linkOrCopy($source, $dest);
-            }
-        }
-
-        $expectedNames = array_keys($skills);
-
-        foreach ($this->existingSkillNames($targetDir) as $existing) {
-            if (in_array($existing, $expectedNames, true)) {
-                continue;
-            }
-
-            ++$counts['removed'];
-            $this->line('  ' . SyncReporter::glyph('removed') . " {$target}/{$existing}");
-
-            if (! $check) {
-                $this->removeSkill($targetDir . DIRECTORY_SEPARATOR . $existing);
-            }
-        }
-    }
-
-    private function runGuidelines(string $root, bool $check, bool $showUnchanged): bool
+    private function planGuidelines(string $root): array
     {
         $guidelines = SyncSources::guidelines($root);
 
         if ($guidelines === '') {
-            $this->components->warn('No guideline files found in .ai/guidelines/ or shipped package-boost guidelines.');
-
-            return false;
+            return [SyncPlan::skipped('no-sources'), ''];
         }
 
         $block = "<package-boost-guidelines>\n{$guidelines}\n</package-boost-guidelines>";
-        $drift = false;
-        $counts = ['new' => 0, 'updated' => 0, 'unchanged' => 0];
 
-        $this->line('Guidelines:');
+        $new = [];
+        $updated = [];
+        $unchanged = [];
 
         foreach (self::GUIDELINE_TARGETS as $target) {
             $filePath = $root . DIRECTORY_SEPARATOR . $target;
-            [$action, $diff] = SyncReporter::planGuidelineAction($filePath, $block);
-            ++$counts[$action];
+            [$action, $hint] = SyncReporter::planGuidelineAction($filePath, $block);
+            $entry = new SyncAction($target, hint: $hint !== '' ? $hint : null);
 
-            if ($action === 'unchanged') {
-                if ($showUnchanged) {
-                    $this->line('  ' . SyncReporter::glyph($action) . " {$target}");
-                }
-
-                continue;
-            }
-
-            $drift = true;
-            $this->line('  ' . SyncReporter::glyph($action) . " {$target}{$diff}");
-
-            if (! $check) {
-                $this->writeGuidelineBlock($filePath, $block);
-            }
+            match ($action) {
+                'new' => $new[] = $entry,
+                'updated' => $updated[] = $entry,
+                'unchanged' => $unchanged[] = $entry,
+            };
         }
 
-        $this->line('  ' . SyncReporter::summaryLine($counts));
-
-        return $drift;
+        return [new SyncPlan(new: $new, updated: $updated, unchanged: $unchanged), $block];
     }
 
-    private function runMcp(string $root, bool $check, bool $showUnchanged): bool
+    /**
+     * @return array{0: SyncPlan, 1: array<mixed>}  plan + desired config for write phase
+     */
+    private function planMcp(string $root): array
     {
         if (! class_exists(BoostServiceProvider::class, false)) {
-            $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
-
-            return false;
+            return [SyncPlan::skipped('laravel-boost-not-installed'), []];
         }
 
         $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
         [$action, $desired] = SyncReporter::planMcpAction($mcpPath, SyncSources::mcpConfig($mcpPath));
 
-        $this->line('MCP:');
+        $entry = new SyncAction('.mcp.json');
+        $plan = match ($action) {
+            'new' => new SyncPlan(new: [$entry]),
+            'updated' => new SyncPlan(updated: [$entry]),
+            'unchanged' => new SyncPlan(unchanged: [$entry]),
+        };
 
-        if ($action !== 'unchanged' || $showUnchanged) {
-            $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
+        return [$plan, $desired];
+    }
+
+    /**
+     * @param  array<string, string>  $skills  name => source path
+     */
+    private function applySkills(SyncPlan $plan, string $root, array $skills): void
+    {
+        foreach ([...$plan->new, ...$plan->updated] as $action) {
+            $name = basename($action->target);
+            $targetDir = $root . DIRECTORY_SEPARATOR . dirname($action->target);
+            $this->linkOrCopy($skills[$name], $targetDir . DIRECTORY_SEPARATOR . $name);
         }
 
-        $this->line('  ' . SyncReporter::summaryLine([$action => 1]));
+        foreach ($plan->removed as $action) {
+            $this->removeSkill($root . DIRECTORY_SEPARATOR . $action->target);
+        }
+    }
 
-        if ($action !== 'unchanged' && ! $check) {
-            file_put_contents(
-                $mcpPath,
-                json_encode($desired, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
-            );
+    private function applyGuidelines(SyncPlan $plan, string $root, string $block): void
+    {
+        foreach ([...$plan->new, ...$plan->updated] as $action) {
+            $this->writeGuidelineBlock($root . DIRECTORY_SEPARATOR . $action->target, $block);
+        }
+    }
+
+    /**
+     * @param  array<mixed>  $desired
+     */
+    private function applyMcp(SyncPlan $plan, string $root, array $desired): void
+    {
+        if (! $plan->hasDrift()) {
+            return;
         }
 
-        return $action !== 'unchanged';
+        file_put_contents(
+            $root . DIRECTORY_SEPARATOR . '.mcp.json',
+            json_encode($desired, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+        );
     }
 
     /**
