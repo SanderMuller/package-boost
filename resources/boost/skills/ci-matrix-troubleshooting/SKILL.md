@@ -13,24 +13,12 @@ work — writing code that'll survive the full range — activate
 
 Before reading CI logs in detail, reproduce the failing cell's
 resolution locally. Most matrix failures are resolver differences,
-not code bugs.
+not code bugs. Run the three-step verification from
+`cross-version-laravel-support` → _Local verification workflow_
+(default / `--prefer-lowest` / `--prefer-stable`).
 
-```bash
-# Match the failing cell's resolution strategy
-composer update --prefer-lowest --prefer-dist --no-interaction
-
-# Run the project's configured test runner (vendor/bin/pest or vendor/bin/phpunit)
-```
-
-Swap `--prefer-lowest` for `--prefer-stable` to match the other
-common cell. If the cell pins a specific PHP version, switch shells
-with `phpenv` / `asdf` / Docker before running.
-
-Always restore the default state after:
-
-```bash
-composer install
-```
+If the cell pins a specific PHP version, switch shells with
+`phpenv` / `asdf` / Docker before running.
 
 ## Usual suspects
 

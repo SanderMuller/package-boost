@@ -64,9 +64,9 @@ top-level directories without a clear reason.
 ## Cross-Version Compatibility
 
 Supporting multiple Laravel / PHP majors is routine for packages.
-Activate the `cross-version-laravel-support` skill when adding
-version-sensitive code, and `ci-matrix-troubleshooting` when a
-matrix cell is already red.
+Activate `cross-version-laravel-support` **before** writing the
+code; activate `ci-matrix-troubleshooting` **after** a matrix cell
+has failed.
 
 ## Conventions
 

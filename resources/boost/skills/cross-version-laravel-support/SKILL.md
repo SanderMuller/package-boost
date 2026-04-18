@@ -1,6 +1,6 @@
 ---
 name: cross-version-laravel-support
-description: "Use when writing or reviewing package code that must work across multiple Laravel or PHP majors. Activates when adding a dependency, using a framework API whose availability spans the range, reading composer constraints, writing version-guarded code, or when user mentions: composer constraint, illuminate/support version, laravel version matrix, backwards compatibility, version guard, feature detection, minimum laravel version, support older laravel, prefer-lowest, prefer-stable, testbench."
+description: "Use when writing or reviewing package code that must work across multiple Laravel or PHP majors. Activates when adding a dependency, using a framework API whose availability spans the range, reading composer constraints, writing version-guarded code, or when user mentions: composer constraint, illuminate/support version, laravel version matrix, backwards compatibility, version guard, feature detection, minimum laravel version, support older laravel, testbench."
 ---
 
 # Cross-Version Laravel Support

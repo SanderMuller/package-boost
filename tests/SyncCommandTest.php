@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\File;
 
 use function Orchestra\Testbench\package_path;
 
-/** Shipped skills that `package-boost:sync` always installs. Keep in sync with `resources/boost/skills/`. */
+/** Keep in sync with `resources/boost/skills/` — adding a directory there requires adding the name here. */
 const SHIPPED_SKILLS = [
     'ci-matrix-troubleshooting',
     'cross-version-laravel-support',
@@ -55,16 +55,12 @@ it('ships the package-development skill even without a user .ai/skills directory
     expect(File::exists(package_path('.claude/skills/package-development/SKILL.md')))->toBeTrue();
 });
 
-it('ships every skill listed in SHIPPED_SKILLS after a bare sync', function (): void {
+it('ships skill after a bare sync', function (string $skill): void {
     $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
 
-    foreach (SHIPPED_SKILLS as $skill) {
-        expect(is_link(package_path('.claude/skills/' . $skill)))
-            ->toBeTrue(".claude/skills/{$skill} should be symlinked")
-            ->and(File::exists(package_path('.claude/skills/' . $skill . '/SKILL.md')))
-            ->toBeTrue(".claude/skills/{$skill}/SKILL.md should be readable");
-    }
-});
+    expect(is_link(package_path('.claude/skills/' . $skill)))->toBeTrue()
+        ->and(File::exists(package_path('.claude/skills/' . $skill . '/SKILL.md')))->toBeTrue();
+})->with(SHIPPED_SKILLS);
 
 it('syncs shipped foundation and user guidelines into agent files', function (): void {
     File::ensureDirectoryExists(package_path('.ai/guidelines'));

@@ -86,6 +86,15 @@ Quick reference for adding content under `.ai/`.
 - Files are concatenated into the `<package-boost-guidelines>` block
   in `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md`.
 
+### Skill file shape
+
+- `.ai/skills/{name}/SKILL.md` — one directory per skill.
+- YAML frontmatter with `name` and `description` (required); body is
+  markdown.
+- `description` is the trigger surface: list the natural-language
+  phrases that should activate the skill. Claude Code's matcher
+  scores against this text, so be explicit about intent.
+
 ### Rendering model
 
 Inside the block, package-boost's shipped foundation renders first,
@@ -100,12 +109,3 @@ the published `config/package-boost.php`. Keys match Boost's
 `GuidelineComposer` convention (`foundation`, `livewire/core`, etc.).
 See the README's _Customising excluded guidelines_ section for the
 publish command and config path.
-
-### Skill file shape
-
-- `.ai/skills/{name}/SKILL.md` — one directory per skill.
-- YAML frontmatter with `name` and `description` (required); body is
-  markdown.
-- `description` is the trigger surface: list the natural-language
-  phrases that should activate the skill. Claude Code's matcher
-  scores against this text, so be explicit about intent.
