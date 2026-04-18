@@ -19,6 +19,7 @@ return [
     */
 
     'excluded_boost_guidelines' => [
+        'foundation',
         'deployments',
         'herd',
         'sail',

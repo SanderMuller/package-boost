@@ -10,3 +10,4 @@ phpunit.xml
 phpstan.neon
 testbench.yaml
 /coverage
+RELEASE_NOTES*.md

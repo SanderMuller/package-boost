@@ -15,6 +15,8 @@ class PackageBoostServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/package-boost.php', 'package-boost');
 
+        $this->applyUserConfigOverrides();
+
         $this->commands([
             SyncCommand::class,
         ]);
@@ -24,20 +26,42 @@ class PackageBoostServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__ . '/../config/package-boost.php' => $this->resolvePublishDestination(),
+                __DIR__ . '/../config/package-boost.php' => $this->workbenchConfigPath() ?? $this->app->configPath('package-boost.php'),
             ], self::PUBLISH_TAG);
         }
 
         $this->mergeBoostGuidelineExcludes();
     }
 
-    private function resolvePublishDestination(): string
+    // Explicit top-level replace, not mergeConfigFrom: the workbench file must
+    // override stale vendor-skeleton publishes and shipped defaults.
+    private function applyUserConfigOverrides(): void
     {
-        if (function_exists('Orchestra\Testbench\workbench_path')) {
-            return \Orchestra\Testbench\workbench_path('config/package-boost.php');
+        $userConfig = $this->workbenchConfigPath();
+
+        if ($userConfig === null || ! is_file($userConfig)) {
+            return;
         }
 
-        return $this->app->configPath('package-boost.php');
+        /** @var Repository $config */
+        $config = $this->app->make('config');
+
+        /** @var array<string, mixed> $current */
+        $current = $config->get('package-boost', []);
+
+        /** @var array<string, mixed> $userValues */
+        $userValues = require $userConfig;
+
+        $config->set('package-boost', array_replace($current, $userValues));
+    }
+
+    private function workbenchConfigPath(): ?string
+    {
+        if (! function_exists('Orchestra\Testbench\workbench_path')) {
+            return null;
+        }
+
+        return \Orchestra\Testbench\workbench_path('config/package-boost.php');
     }
 
     protected function boostIsInstalled(): bool
