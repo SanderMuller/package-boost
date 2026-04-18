@@ -11,11 +11,18 @@ This is a Laravel **package**, not a full application. There is no `artisan`, no
 
 | Do NOT use | Use instead |
 |---|---|
-| `php artisan test` | `vendor/bin/pest` |
+| `php artisan test` | The package's configured test runner (`vendor/bin/pest` or `vendor/bin/phpunit`) |
 | `php artisan tinker` | `vendor/bin/testbench tinker` |
 | `php artisan make:*` | Create files manually in `src/` |
-| `php artisan boost:mcp` | `vendor/bin/testbench boost:mcp` |
+
+### Commands that require `laravel/boost`
+
+Skip these rows if the package doesn't depend on `laravel/boost`.
+
+| Do NOT use | Use instead |
+|---|---|
 | `php artisan boost:install` | `vendor/bin/testbench boost:install` |
+| `php artisan boost:mcp` | `vendor/bin/testbench boost:mcp` |
 
 ## Source Layout
 

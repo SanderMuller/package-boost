@@ -80,6 +80,8 @@ it('ships foundation guideline even without a user .ai/guidelines directory', fu
     $claude = File::get(package_path('CLAUDE.md'));
     expect($claude)->toContain('# Package Boost Guidelines')
         ->and($claude)->toContain('Foundational Context')
+        ->and($claude)->toContain('configured test runner')
+        ->and($claude)->toContain('Commands that require `laravel/boost`')
         ->and($claude)->not->toContain("\n\n---\n\n");
 });
 

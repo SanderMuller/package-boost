@@ -28,12 +28,21 @@ no host application. Use Testbench's binary:
 
 | Instead of | Use |
 |---|---|
-| `php artisan test` | `vendor/bin/pest` (or `vendor/bin/phpunit`) |
+| `php artisan test` | The package's configured test runner (`vendor/bin/pest` or `vendor/bin/phpunit`) |
 | `php artisan tinker` | `vendor/bin/testbench tinker` |
 | `php artisan make:*` | Create files manually under `src/` |
+| `php artisan vendor:publish` | `vendor/bin/testbench vendor:publish` |
+
+### Commands that require `laravel/boost`
+
+These only apply when the package has `laravel/boost` as a dev
+dependency. Skip if Boost isn't installed — `package-boost:sync`
+prints a warning and moves on.
+
+| Instead of | Use |
+|---|---|
 | `php artisan boost:install` | `vendor/bin/testbench boost:install` |
 | `php artisan boost:mcp` | `vendor/bin/testbench boost:mcp` |
-| `php artisan vendor:publish` | `vendor/bin/testbench vendor:publish` |
 
 Register the package's service provider in `testbench.yaml` under
 `providers:` so Testbench boots it. Published files land in
@@ -81,8 +90,8 @@ behaviour is pinned down.
   Testbench are preferred over ad-hoc tinker scripts.
 - Do not create "verification scripts" when a test can prove the same
   thing.
-- Run `vendor/bin/pest` (or the project's equivalent) before claiming a
-  change is done.
+- Run the project's configured test runner (`vendor/bin/pest` or
+  `vendor/bin/phpunit`) before claiming a change is done.
 
 ## Public API Discipline
 
