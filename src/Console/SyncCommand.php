@@ -177,17 +177,18 @@ class SyncCommand extends Command
         }
 
         $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
+        $existing = SyncSources::mcpConfig($mcpPath);
 
-        /** @var array<string, array<string, mixed>> $existing */
-        $existing = file_exists($mcpPath)
-            ? (json_decode((string) file_get_contents($mcpPath), true) ?? [])
+        $mcpServers = isset($existing['mcpServers']) && is_array($existing['mcpServers'])
+            ? $existing['mcpServers']
             : [];
-
-        $desired = $existing;
-        $desired['mcpServers']['laravel-boost'] = [
+        $mcpServers['laravel-boost'] = [
             'command' => 'vendor/bin/testbench',
             'args' => ['boost:mcp'],
         ];
+
+        $desired = $existing;
+        $desired['mcpServers'] = $mcpServers;
 
         $this->line('MCP:');
 

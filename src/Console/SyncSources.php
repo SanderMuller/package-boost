@@ -33,6 +33,23 @@ final class SyncSources
         return $skills;
     }
 
+    /**
+     * Safe read of `.mcp.json`: returns `[]` on missing file, invalid JSON,
+     * or any non-object root (bare scalars, arrays of ints, etc.).
+     *
+     * @return array<mixed>
+     */
+    public static function mcpConfig(string $mcpPath): array
+    {
+        if (! file_exists($mcpPath)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) file_get_contents($mcpPath), true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
     public static function guidelines(string $root): string
     {
         $groups = [];

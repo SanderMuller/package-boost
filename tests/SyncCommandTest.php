@@ -149,3 +149,83 @@ it('--check does not write skill targets when drift detected', function (): void
 
     expect(file_exists(package_path('.claude/skills/package-development')))->toBeFalse();
 });
+
+/**
+ * @return array<mixed>
+ */
+function readMcpConfig(): array
+{
+    $decoded = json_decode((string) File::get(package_path('.mcp.json')), true);
+
+    return is_array($decoded) ? $decoded : [];
+}
+
+it('syncs MCP config and preserves unrelated user keys', function (): void {
+    File::put(package_path('.mcp.json'), (string) json_encode([
+        'mcpServers' => [
+            'custom-server' => ['command' => '/usr/bin/thing'],
+        ],
+        'unrelatedRoot' => ['keep' => 'me'],
+    ], JSON_PRETTY_PRINT));
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('MCP:')
+        ->expectsOutputToContain('~ .mcp.json')
+        ->assertSuccessful();
+
+    $config = readMcpConfig();
+    $servers = is_array($config['mcpServers'] ?? null) ? $config['mcpServers'] : [];
+    $boost = is_array($servers['laravel-boost'] ?? null) ? $servers['laravel-boost'] : [];
+
+    expect($config)->toHaveKey('unrelatedRoot')
+        ->and($servers)->toHaveKey('custom-server')
+        ->and($servers)->toHaveKey('laravel-boost')
+        ->and($boost['command'] ?? null)->toBe('vendor/bin/testbench');
+});
+
+it('recovers when .mcp.json contains a non-array scalar root', function (): void {
+    File::put(package_path('.mcp.json'), '"this is not an object"');
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('~ .mcp.json')
+        ->assertSuccessful();
+
+    $config = readMcpConfig();
+    $servers = is_array($config['mcpServers'] ?? null) ? $config['mcpServers'] : [];
+    $boost = is_array($servers['laravel-boost'] ?? null) ? $servers['laravel-boost'] : [];
+
+    expect($boost['command'] ?? null)->toBe('vendor/bin/testbench');
+});
+
+it('recovers when .mcp.json mcpServers key is not an array', function (): void {
+    File::put(package_path('.mcp.json'), (string) json_encode([
+        'mcpServers' => 'typo',
+    ]));
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('~ .mcp.json')
+        ->assertSuccessful();
+
+    $config = readMcpConfig();
+    $servers = is_array($config['mcpServers'] ?? null) ? $config['mcpServers'] : [];
+    $boost = is_array($servers['laravel-boost'] ?? null) ? $servers['laravel-boost'] : [];
+
+    expect($boost['command'] ?? null)->toBe('vendor/bin/testbench');
+});
+
+it('reports MCP unchanged on a clean re-sync', function (): void {
+    $this->artisan('package-boost:sync', ['--mcp' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('= .mcp.json')
+        ->assertSuccessful();
+});
+
+it('--check fails when only one category is drifting', function (): void {
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--check' => true])
+        ->expectsOutputToContain('+ .claude/skills/package-development')
+        ->expectsOutputToContain('Generated files are out of sync')
+        ->assertExitCode(1);
+});
