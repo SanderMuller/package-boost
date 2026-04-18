@@ -53,6 +53,22 @@ vendor/bin/testbench package-boost:sync --guidelines
 vendor/bin/testbench package-boost:sync --mcp
 ```
 
+### CI drift check
+
+```bash
+vendor/bin/testbench package-boost:sync --check
+```
+
+Reports planned actions without writing. Exits non-zero if any skill, guideline, or MCP target differs from its source. Use in CI to catch "forgot to sync" commits.
+
+### Verbose output
+
+```bash
+vendor/bin/testbench package-boost:sync --show-unchanged
+```
+
+By default, the sync output lists only targets that changed and folds unchanged ones into the `total: ...` summary. Pass `--show-unchanged` to print a line per unchanged target as well.
+
 ### Composer script
 
 ```json
