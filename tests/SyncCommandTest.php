@@ -5,13 +5,22 @@ use Illuminate\Support\Facades\File;
 use function Orchestra\Testbench\package_path;
 
 beforeEach(function (): void {
+    wipeArtifacts();
+});
+
+afterEach(function (): void {
+    wipeArtifacts();
+});
+
+function wipeArtifacts(): void
+{
     File::deleteDirectory(package_path('.ai'));
     File::deleteDirectory(package_path('.claude/skills'));
     File::deleteDirectory(package_path('.github/skills'));
     File::delete(package_path('CLAUDE.md'));
     File::delete(package_path('AGENTS.md'));
     File::delete(package_path('.github/copilot-instructions.md'));
-});
+}
 
 it('syncs user and shipped skills to agent directories', function (): void {
     File::ensureDirectoryExists(package_path('.ai/skills/test-skill'));
