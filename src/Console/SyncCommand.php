@@ -191,24 +191,20 @@ class SyncCommand extends Command
 
         $this->line('MCP:');
 
-        if ($action === 'unchanged') {
-            if ($showUnchanged) {
-                $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
-            }
-
-            return false;
+        if ($action !== 'unchanged' || $showUnchanged) {
+            $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
         }
 
-        $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
+        $this->line('  ' . SyncReporter::summaryLine([$action => 1]));
 
-        if (! $check) {
+        if ($action !== 'unchanged' && ! $check) {
             file_put_contents(
                 $mcpPath,
                 json_encode($desired, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
             );
         }
 
-        return true;
+        return $action !== 'unchanged';
     }
 
     /**

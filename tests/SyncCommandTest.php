@@ -218,6 +218,16 @@ it('reports MCP unchanged on a clean re-sync with --show-unchanged', function ()
 
     $this->artisan('package-boost:sync', ['--mcp' => true, '--show-unchanged' => true])
         ->expectsOutputToContain('= .mcp.json')
+        ->expectsOutputToContain('total: 1 unchanged')
+        ->assertSuccessful();
+});
+
+it('always emits a MCP summary line, matching skills and guidelines output', function (): void {
+    $this->artisan('package-boost:sync', ['--mcp' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('MCP:')
+        ->expectsOutputToContain('total: 1 unchanged')
         ->assertSuccessful();
 });
 
