@@ -63,31 +63,22 @@ class SyncCommand extends Command
 
     private function syncSkills(string $root): void
     {
-        $sourceDir = $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills';
+        $skills = $this->collectSkills($root);
 
-        if (! is_dir($sourceDir)) {
-            $this->components->warn('No .ai/skills/ directory found.');
-
-            return;
-        }
-
-        $skills = glob($sourceDir . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
-
-        if ($skills === false || $skills === []) {
-            $this->components->warn('No skills found in .ai/skills/.');
+        if ($skills === []) {
+            $this->components->warn('No skills found in .ai/skills/ or shipped package-boost skills.');
 
             return;
         }
 
-        $skillNames = array_map(basename(...), $skills);
+        $skillNames = array_values(array_map(basename(...), $skills));
 
         foreach (self::SKILL_TARGETS as $target) {
             $targetDir = $root . DIRECTORY_SEPARATOR . $target;
 
             $this->removeStaleSkills($targetDir, $skillNames);
 
-            foreach ($skills as $skillPath) {
-                $skillName = basename($skillPath);
+            foreach ($skills as $skillName => $skillPath) {
                 $dest = $targetDir . DIRECTORY_SEPARATOR . $skillName;
 
                 $this->linkOrCopy($skillPath, $dest);
@@ -97,6 +88,40 @@ class SyncCommand extends Command
         $skillCount = count($skills);
         $targetCount = count(self::SKILL_TARGETS);
         $this->components->info("Synced {$skillCount} skills to {$targetCount} agent directories.");
+    }
+
+    /**
+     * Collect skills from package-boost's shipped resources and the user's
+     * `.ai/skills/`. User skills override shipped skills of the same name.
+     *
+     * @return array<string, string>
+     */
+    private function collectSkills(string $root): array
+    {
+        $sources = [
+            __DIR__ . '/../../resources/boost/skills',
+            $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills',
+        ];
+
+        $skills = [];
+
+        foreach ($sources as $dir) {
+            if (! is_dir($dir)) {
+                continue;
+            }
+
+            $entries = glob($dir . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
+
+            if ($entries === false) {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                $skills[basename($entry)] = $entry;
+            }
+        }
+
+        return $skills;
     }
 
     private function linkOrCopy(string $source, string $dest): void
@@ -162,18 +187,10 @@ class SyncCommand extends Command
 
     private function syncGuidelines(string $root): void
     {
-        $sourceDir = $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'guidelines';
-
-        if (! is_dir($sourceDir)) {
-            $this->components->warn('No .ai/guidelines/ directory found.');
-
-            return;
-        }
-
-        $guidelines = $this->collectGuidelines($sourceDir);
+        $guidelines = $this->collectGuidelines($root);
 
         if ($guidelines === '') {
-            $this->components->warn('No guideline files found in .ai/guidelines/.');
+            $this->components->warn('No guideline files found in .ai/guidelines/ or shipped package-boost guidelines.');
 
             return;
         }
@@ -188,21 +205,37 @@ class SyncCommand extends Command
         $this->components->info('Synced guidelines to ' . count(self::GUIDELINE_TARGETS) . ' agent files.');
     }
 
-    private function collectGuidelines(string $dir): string
+    /**
+     * Collect guideline markdown from package-boost's shipped resources first,
+     * then the user's `.ai/guidelines/`. Shipped foundation appears ahead of
+     * user-authored content.
+     */
+    private function collectGuidelines(string $root): string
     {
-        $finder = Finder::create()
-            ->files()
-            ->in($dir)
-            ->name('*.md')
-            ->sortByName();
+        $sources = [
+            __DIR__ . '/../../resources/boost/guidelines',
+            $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'guidelines',
+        ];
 
         $parts = [];
 
-        foreach ($finder as $file) {
-            $content = trim($file->getContents());
+        foreach ($sources as $dir) {
+            if (! is_dir($dir)) {
+                continue;
+            }
 
-            if ($content !== '') {
-                $parts[] = $content;
+            $finder = Finder::create()
+                ->files()
+                ->in($dir)
+                ->name('*.md')
+                ->sortByName();
+
+            foreach ($finder as $file) {
+                $content = trim($file->getContents());
+
+                if ($content !== '') {
+                    $parts[] = $content;
+                }
             }
         }
 
