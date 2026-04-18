@@ -103,6 +103,16 @@ it('ships foundation guideline even without a user .ai/guidelines directory', fu
         ->and($claude)->not->toContain("\n\n---\n\n");
 });
 
+it('ships the Authoring guidelines section in the package-development skill', function (): void {
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    $skill = File::get(package_path('.claude/skills/package-development/SKILL.md'));
+
+    expect($skill)->toContain('## Authoring guidelines')
+        ->and($skill)->toContain('Guideline file shape')
+        ->and($skill)->toContain('Skill file shape');
+});
+
 it('removes stale skills from target directories', function (): void {
     File::ensureDirectoryExists(package_path('.ai/skills/keep-me'));
     File::put(package_path('.ai/skills/keep-me/SKILL.md'), "---\nname: keep-me\ndescription: Keep.\n---\n");

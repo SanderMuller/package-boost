@@ -72,3 +72,40 @@ vendor/bin/testbench package-boost:sync --check
 ```
 
 Exits non-zero when generated files drift from sources. Use in CI to catch commits where `.ai/*` was edited but generated files weren't re-synced.
+
+## Authoring guidelines
+
+Quick reference for adding content under `.ai/`.
+
+### Guideline file shape
+
+- Plain markdown in `.ai/guidelines/*.md`. **No frontmatter
+  required.**
+- One topic per file; filename controls ordering
+  (`sortByName` across the sources dir).
+- Files are concatenated into the `<package-boost-guidelines>` block
+  in `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md`.
+
+### Rendering model
+
+Inside the block, package-boost's shipped foundation renders first,
+then a `---` horizontal rule separator, then the host package's own
+`.ai/guidelines/*.md` in filename order. Only one source present?
+Divider is omitted.
+
+### Opting out of shipped content
+
+Add the unwanted guideline's key to `excluded_boost_guidelines` in
+the published `config/package-boost.php`. Keys match Boost's
+`GuidelineComposer` convention (`foundation`, `livewire/core`, etc.).
+See the README's _Customising excluded guidelines_ section for the
+publish command and config path.
+
+### Skill file shape
+
+- `.ai/skills/{name}/SKILL.md` — one directory per skill.
+- YAML frontmatter with `name` and `description` (required); body is
+  markdown.
+- `description` is the trigger surface: list the natural-language
+  phrases that should activate the skill. Claude Code's matcher
+  scores against this text, so be explicit about intent.

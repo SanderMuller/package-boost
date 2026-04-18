@@ -27,14 +27,11 @@ dedicated sub-table. Landed under
 - ~~`ci-matrix-troubleshooting`~~ — shipped. See
   `specs/0.5.0/ci-matrix-troubleshooting-skill.md`.
 
-### `.ai/guidelines/` schema docs
+### ~~`.ai/guidelines/` schema docs~~ — shipped
 
-Short `## Authoring guidelines` section in the shipped
-`package-development` SKILL covering: frontmatter fields (none
-required today), file ordering (`sortByName` under each source),
-how shipped and user guidelines interact (horizontal rule between
-groups), and how to exclude a shipped guideline via
-`excluded_boost_guidelines`.
+`## Authoring guidelines` section appended to the shipped
+`package-development` SKILL. See
+`specs/0.5.0/guidelines-schema-docs.md`. 0.5.0 scope complete.
 
 ## 0.6.0 — structured output
 
