@@ -9,6 +9,8 @@ use SanderMuller\PackageBoost\Console\SyncCommand;
 
 class PackageBoostServiceProvider extends ServiceProvider
 {
+    public const PUBLISH_TAG = 'package-boost-config';
+
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/package-boost.php', 'package-boost');
@@ -23,7 +25,7 @@ class PackageBoostServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__ . '/../config/package-boost.php' => $this->resolvePublishDestination(),
-            ], 'package-boost-config');
+            ], self::PUBLISH_TAG);
         }
 
         $this->mergeBoostGuidelineExcludes();
@@ -40,7 +42,7 @@ class PackageBoostServiceProvider extends ServiceProvider
 
     protected function boostIsInstalled(): bool
     {
-        return class_exists(BoostServiceProvider::class);
+        return class_exists(BoostServiceProvider::class, false);
     }
 
     private function mergeBoostGuidelineExcludes(): void

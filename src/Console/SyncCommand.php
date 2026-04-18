@@ -231,7 +231,7 @@ class SyncCommand extends Command
 
     private function syncMcp(string $root): void
     {
-        if (! class_exists(BoostServiceProvider::class)) {
+        if (! class_exists(BoostServiceProvider::class, false)) {
             $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
 
             return;

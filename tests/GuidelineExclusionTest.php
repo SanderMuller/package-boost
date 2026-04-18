@@ -68,7 +68,7 @@ it('does not touch boost config when laravel/boost is not installed', function (
 });
 
 it('publishes config to the workbench config directory', function (): void {
-    $paths = ServiceProvider::pathsToPublish(PackageBoostServiceProvider::class, 'package-boost-config');
+    $paths = ServiceProvider::pathsToPublish(PackageBoostServiceProvider::class, PackageBoostServiceProvider::PUBLISH_TAG);
 
     expect($paths)->not->toBeEmpty();
     expect(array_values($paths)[0])->toBe(workbench_path('config/package-boost.php'));
