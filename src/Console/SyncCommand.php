@@ -212,21 +212,34 @@ class SyncCommand extends Command
 
     private function collectGuidelines(string $root): string
     {
-        $parts = [];
+        $groups = [];
 
         foreach ($this->sourceDirs($root, 'guidelines') as $dir) {
-            $finder = Finder::create()
-                ->files()
-                ->in($dir)
-                ->name('*.md')
-                ->sortByName();
+            $group = $this->readGuidelineDir($dir);
 
-            foreach ($finder as $file) {
-                $content = trim($file->getContents());
+            if ($group !== '') {
+                $groups[] = $group;
+            }
+        }
 
-                if ($content !== '') {
-                    $parts[] = $content;
-                }
+        return implode("\n\n---\n\n", $groups);
+    }
+
+    private function readGuidelineDir(string $dir): string
+    {
+        $finder = Finder::create()
+            ->files()
+            ->in($dir)
+            ->name('*.md')
+            ->sortByName();
+
+        $parts = [];
+
+        foreach ($finder as $file) {
+            $content = trim($file->getContents());
+
+            if ($content !== '') {
+                $parts[] = $content;
             }
         }
 

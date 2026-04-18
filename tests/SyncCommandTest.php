@@ -59,8 +59,10 @@ it('syncs shipped foundation and user guidelines into agent files', function ():
         ->and($claude)->toContain('Do the thing.');
 
     $foundationPos = strpos($claude, '# Package Boost Guidelines');
+    $dividerPos = strpos($claude, "\n\n---\n\n");
     $userPos = strpos($claude, 'Do the thing.');
-    expect($foundationPos !== false && $userPos !== false && $foundationPos < $userPos)->toBeTrue();
+    expect($foundationPos !== false && $dividerPos !== false && $userPos !== false
+        && $foundationPos < $dividerPos && $dividerPos < $userPos)->toBeTrue();
 
     expect(File::exists(package_path('AGENTS.md')))->toBeTrue();
     expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue();
@@ -73,7 +75,8 @@ it('ships foundation guideline even without a user .ai/guidelines directory', fu
 
     $claude = File::get(package_path('CLAUDE.md'));
     expect($claude)->toContain('# Package Boost Guidelines')
-        ->and($claude)->toContain('Foundational Context');
+        ->and($claude)->toContain('Foundational Context')
+        ->and($claude)->not->toContain("\n\n---\n\n");
 });
 
 it('removes stale skills from target directories', function (): void {
