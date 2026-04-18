@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\File;
 
 use function Orchestra\Testbench\package_path;
 
-beforeEach(static function (): void {
+beforeEach(function (): void {
     // Clean up any generated files from previous runs
     File::deleteDirectory(package_path('.ai'));
     File::deleteDirectory(package_path('.claude/skills'));

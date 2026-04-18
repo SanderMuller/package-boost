@@ -22,11 +22,20 @@ class PackageBoostServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__ . '/../config/package-boost.php' => $this->app->configPath('package-boost.php'),
+                __DIR__ . '/../config/package-boost.php' => $this->resolvePublishDestination(),
             ], 'package-boost-config');
         }
 
         $this->mergeBoostGuidelineExcludes();
+    }
+
+    private function resolvePublishDestination(): string
+    {
+        if (function_exists('Orchestra\Testbench\workbench_path')) {
+            return \Orchestra\Testbench\workbench_path('config/package-boost.php');
+        }
+
+        return $this->app->configPath('package-boost.php');
     }
 
     private function mergeBoostGuidelineExcludes(): void
