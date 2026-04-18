@@ -7,10 +7,13 @@ namespace SanderMuller\PackageBoost\Console;
  */
 final class SyncReporter
 {
-    public static function planSkillAction(string $source, string $dest): string
+    /**
+     * @return array{0: 'new'|'updated'|'unchanged', 1: string}
+     */
+    public static function planSkillAction(string $source, string $dest): array
     {
         if (! is_link($dest) && ! file_exists($dest)) {
-            return 'new';
+            return ['new', ''];
         }
 
         if (is_link($dest)) {
@@ -21,10 +24,14 @@ final class SyncReporter
             );
             $actual = readlink($dest);
 
-            return $actual === $expected ? 'unchanged' : 'updated';
+            if ($actual === $expected) {
+                return ['unchanged', ''];
+            }
+
+            return ['updated', " (symlink → {$expected})"];
         }
 
-        return 'unchanged';
+        return ['unchanged', ''];
     }
 
     /**
@@ -48,6 +55,35 @@ final class SyncReporter
         }
 
         return ['updated', self::lineDiff($content, $newContent)];
+    }
+
+    /**
+     * @param  array<mixed>  $existing
+     *
+     * @return array{0: 'new'|'updated'|'unchanged', 1: array<mixed>}
+     */
+    public static function planMcpAction(string $mcpPath, array $existing): array
+    {
+        $mcpServers = isset($existing['mcpServers']) && is_array($existing['mcpServers'])
+            ? $existing['mcpServers']
+            : [];
+        $mcpServers['laravel-boost'] = [
+            'command' => 'vendor/bin/testbench',
+            'args' => ['boost:mcp'],
+        ];
+
+        $desired = $existing;
+        $desired['mcpServers'] = $mcpServers;
+
+        if (! file_exists($mcpPath)) {
+            return ['new', $desired];
+        }
+
+        if ($existing === $desired) {
+            return ['unchanged', $desired];
+        }
+
+        return ['updated', $desired];
     }
 
     public static function escapeReplacement(string $block): string

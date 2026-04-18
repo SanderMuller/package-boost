@@ -12,7 +12,8 @@ class SyncCommand extends Command
         {--skills : Only sync skills}
         {--guidelines : Only sync guidelines}
         {--mcp : Only sync MCP config}
-        {--check : Report drift without writing; exits non-zero if sources diverge from generated files}';
+        {--check : Report drift without writing; exits non-zero if sources diverge from generated files}
+        {--show-unchanged : Print unchanged entries per line instead of only counting them in the summary}';
 
     protected $description = 'Sync .ai/ skills and guidelines to agent directories';
 
@@ -33,6 +34,7 @@ class SyncCommand extends Command
     {
         $root = $this->resolvePackageRoot();
         $check = $this->option('check') === true;
+        $showUnchanged = $this->option('show-unchanged') === true;
 
         $syncSkills = $this->option('skills') === true;
         $syncGuidelines = $this->option('guidelines') === true;
@@ -41,15 +43,15 @@ class SyncCommand extends Command
 
         $drift = false;
 
-        if (($syncAll || $syncSkills) && $this->runSkills($root, $check)) {
+        if (($syncAll || $syncSkills) && $this->runSkills($root, $check, $showUnchanged)) {
             $drift = true;
         }
 
-        if (($syncAll || $syncGuidelines) && $this->runGuidelines($root, $check)) {
+        if (($syncAll || $syncGuidelines) && $this->runGuidelines($root, $check, $showUnchanged)) {
             $drift = true;
         }
 
-        if (($syncAll || $syncMcp) && $this->runMcp($root, $check)) {
+        if (($syncAll || $syncMcp) && $this->runMcp($root, $check, $showUnchanged)) {
             $drift = true;
         }
 
@@ -71,7 +73,7 @@ class SyncCommand extends Command
         return (string) getcwd();
     }
 
-    private function runSkills(string $root, bool $check): bool
+    private function runSkills(string $root, bool $check, bool $showUnchanged): bool
     {
         $skills = SyncSources::skills($root);
 
@@ -86,7 +88,7 @@ class SyncCommand extends Command
         $counts = ['new' => 0, 'updated' => 0, 'unchanged' => 0, 'removed' => 0];
 
         foreach (self::SKILL_TARGETS as $target) {
-            $this->syncSkillsForTarget($root, $target, $skills, $check, $counts);
+            $this->syncSkillsForTarget($root, $target, $skills, $check, $showUnchanged, $counts);
         }
 
         $this->line('  ' . SyncReporter::summaryLine($counts));
@@ -98,21 +100,23 @@ class SyncCommand extends Command
      * @param  array<string, string>  $skills
      * @param  array<string, int>     $counts
      */
-    private function syncSkillsForTarget(string $root, string $target, array $skills, bool $check, array &$counts): void
+    private function syncSkillsForTarget(string $root, string $target, array $skills, bool $check, bool $showUnchanged, array &$counts): void
     {
         $targetDir = $root . DIRECTORY_SEPARATOR . $target;
 
         foreach ($skills as $name => $source) {
             $dest = $targetDir . DIRECTORY_SEPARATOR . $name;
-            $action = SyncReporter::planSkillAction($source, $dest);
+            [$action, $hint] = SyncReporter::planSkillAction($source, $dest);
             $counts[$action]++;
 
-            if ($action !== 'unchanged') {
-                $this->line('  ' . SyncReporter::glyph($action) . " {$target}/{$name}");
+            if ($action === 'unchanged' && ! $showUnchanged) {
+                continue;
+            }
 
-                if (! $check) {
-                    $this->linkOrCopy($source, $dest);
-                }
+            $this->line('  ' . SyncReporter::glyph($action) . " {$target}/{$name}{$hint}");
+
+            if ($action !== 'unchanged' && ! $check) {
+                $this->linkOrCopy($source, $dest);
             }
         }
 
@@ -132,7 +136,7 @@ class SyncCommand extends Command
         }
     }
 
-    private function runGuidelines(string $root, bool $check): bool
+    private function runGuidelines(string $root, bool $check, bool $showUnchanged): bool
     {
         $guidelines = SyncSources::guidelines($root);
 
@@ -153,13 +157,19 @@ class SyncCommand extends Command
             [$action, $diff] = SyncReporter::planGuidelineAction($filePath, $block);
             $counts[$action]++;
 
-            if ($action !== 'unchanged') {
-                $drift = true;
-                $this->line('  ' . SyncReporter::glyph($action) . " {$target}{$diff}");
-
-                if (! $check) {
-                    $this->writeGuidelineBlock($filePath, $block);
+            if ($action === 'unchanged') {
+                if ($showUnchanged) {
+                    $this->line('  ' . SyncReporter::glyph($action) . " {$target}");
                 }
+
+                continue;
+            }
+
+            $drift = true;
+            $this->line('  ' . SyncReporter::glyph($action) . " {$target}{$diff}");
+
+            if (! $check) {
+                $this->writeGuidelineBlock($filePath, $block);
             }
         }
 
@@ -168,7 +178,7 @@ class SyncCommand extends Command
         return $drift;
     }
 
-    private function runMcp(string $root, bool $check): bool
+    private function runMcp(string $root, bool $check, bool $showUnchanged): bool
     {
         if (! class_exists(BoostServiceProvider::class, false)) {
             $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
@@ -177,28 +187,18 @@ class SyncCommand extends Command
         }
 
         $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
-        $existing = SyncSources::mcpConfig($mcpPath);
-
-        $mcpServers = isset($existing['mcpServers']) && is_array($existing['mcpServers'])
-            ? $existing['mcpServers']
-            : [];
-        $mcpServers['laravel-boost'] = [
-            'command' => 'vendor/bin/testbench',
-            'args' => ['boost:mcp'],
-        ];
-
-        $desired = $existing;
-        $desired['mcpServers'] = $mcpServers;
+        [$action, $desired] = SyncReporter::planMcpAction($mcpPath, SyncSources::mcpConfig($mcpPath));
 
         $this->line('MCP:');
 
-        if ($existing === $desired && file_exists($mcpPath)) {
-            $this->line('  ' . SyncReporter::glyph('unchanged') . ' .mcp.json');
+        if ($action === 'unchanged') {
+            if ($showUnchanged) {
+                $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
+            }
 
             return false;
         }
 
-        $action = file_exists($mcpPath) ? 'updated' : 'new';
         $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
 
         if (! $check) {

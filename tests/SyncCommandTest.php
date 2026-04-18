@@ -213,11 +213,29 @@ it('recovers when .mcp.json mcpServers key is not an array', function (): void {
     expect($boost['command'] ?? null)->toBe('vendor/bin/testbench');
 });
 
-it('reports MCP unchanged on a clean re-sync', function (): void {
+it('reports MCP unchanged on a clean re-sync with --show-unchanged', function (): void {
     $this->artisan('package-boost:sync', ['--mcp' => true])->assertSuccessful();
 
-    $this->artisan('package-boost:sync', ['--mcp' => true])
+    $this->artisan('package-boost:sync', ['--mcp' => true, '--show-unchanged' => true])
         ->expectsOutputToContain('= .mcp.json')
+        ->assertSuccessful();
+});
+
+it('annotates skill updates with the symlink target', function (): void {
+    File::ensureDirectoryExists(package_path('.claude/skills'));
+    symlink('/tmp/bogus-target', package_path('.claude/skills/package-development'));
+
+    $this->artisan('package-boost:sync', ['--skills' => true])
+        ->expectsOutputToContain('~ .claude/skills/package-development (symlink →')
+        ->assertSuccessful();
+});
+
+it('shows unchanged entries per line with --show-unchanged', function (): void {
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--guidelines' => true, '--show-unchanged' => true])
+        ->expectsOutputToContain('= CLAUDE.md')
+        ->expectsOutputToContain('= AGENTS.md')
         ->assertSuccessful();
 });
 
