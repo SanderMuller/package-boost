@@ -91,25 +91,30 @@ class SyncCommand extends Command
     }
 
     /**
-     * Collect skills from package-boost's shipped resources and the user's
-     * `.ai/skills/`. User skills override shipped skills of the same name.
+     * Shipped resources first, user `.ai/` second — so user entries override
+     * shipped entries of the same name during later iteration.
      *
+     * @return array<int, string>
+     */
+    private function sourceDirs(string $root, string $kind): array
+    {
+        return array_values(array_filter(
+            [
+                dirname(__DIR__, 2) . '/resources/boost/' . $kind,
+                $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . $kind,
+            ],
+            is_dir(...),
+        ));
+    }
+
+    /**
      * @return array<string, string>
      */
     private function collectSkills(string $root): array
     {
-        $sources = [
-            __DIR__ . '/../../resources/boost/skills',
-            $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills',
-        ];
-
         $skills = [];
 
-        foreach ($sources as $dir) {
-            if (! is_dir($dir)) {
-                continue;
-            }
-
+        foreach ($this->sourceDirs($root, 'skills') as $dir) {
             $entries = glob($dir . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
 
             if ($entries === false) {
@@ -205,25 +210,11 @@ class SyncCommand extends Command
         $this->components->info('Synced guidelines to ' . count(self::GUIDELINE_TARGETS) . ' agent files.');
     }
 
-    /**
-     * Collect guideline markdown from package-boost's shipped resources first,
-     * then the user's `.ai/guidelines/`. Shipped foundation appears ahead of
-     * user-authored content.
-     */
     private function collectGuidelines(string $root): string
     {
-        $sources = [
-            __DIR__ . '/../../resources/boost/guidelines',
-            $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'guidelines',
-        ];
-
         $parts = [];
 
-        foreach ($sources as $dir) {
-            if (! is_dir($dir)) {
-                continue;
-            }
-
+        foreach ($this->sourceDirs($root, 'guidelines') as $dir) {
             $finder = Finder::create()
                 ->files()
                 ->in($dir)
