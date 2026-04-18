@@ -20,6 +20,7 @@ function wipeArtifacts(): void
     File::delete(package_path('CLAUDE.md'));
     File::delete(package_path('AGENTS.md'));
     File::delete(package_path('.github/copilot-instructions.md'));
+    File::delete(package_path('.mcp.json'));
 }
 
 it('syncs user and shipped skills to agent directories', function (): void {
@@ -27,7 +28,9 @@ it('syncs user and shipped skills to agent directories', function (): void {
     File::put(package_path('.ai/skills/test-skill/SKILL.md'), "---\nname: test-skill\ndescription: A test skill.\n---\n\n# Test Skill\n");
 
     $this->artisan('package-boost:sync', ['--skills' => true])
-        ->expectsOutputToContain('Synced 2 skills to 2 agent directories')
+        ->expectsOutputToContain('Skills:')
+        ->expectsOutputToContain('+ .claude/skills/test-skill')
+        ->expectsOutputToContain('+ .claude/skills/package-development')
         ->assertSuccessful();
 
     expect(is_link(package_path('.claude/skills/test-skill')))->toBeTrue();
@@ -38,7 +41,7 @@ it('syncs user and shipped skills to agent directories', function (): void {
 
 it('ships the package-development skill even without a user .ai/skills directory', function (): void {
     $this->artisan('package-boost:sync', ['--skills' => true])
-        ->expectsOutputToContain('Synced 1 skills to 2 agent directories')
+        ->expectsOutputToContain('+ .claude/skills/package-development')
         ->assertSuccessful();
 
     expect(is_link(package_path('.claude/skills/package-development')))->toBeTrue();
@@ -50,7 +53,8 @@ it('syncs shipped foundation and user guidelines into agent files', function ():
     File::put(package_path('.ai/guidelines/test.md'), "## Test Guideline\n\nDo the thing.\n");
 
     $this->artisan('package-boost:sync', ['--guidelines' => true])
-        ->expectsOutputToContain('Synced guidelines to 3 agent files')
+        ->expectsOutputToContain('Guidelines:')
+        ->expectsOutputToContain('+ CLAUDE.md')
         ->assertSuccessful();
 
     $claude = File::get(package_path('CLAUDE.md'));
@@ -70,7 +74,7 @@ it('syncs shipped foundation and user guidelines into agent files', function ():
 
 it('ships foundation guideline even without a user .ai/guidelines directory', function (): void {
     $this->artisan('package-boost:sync', ['--guidelines' => true])
-        ->expectsOutputToContain('Synced guidelines to 3 agent files')
+        ->expectsOutputToContain('+ CLAUDE.md')
         ->assertSuccessful();
 
     $claude = File::get(package_path('CLAUDE.md'));
@@ -87,6 +91,7 @@ it('removes stale skills from target directories', function (): void {
     File::put(package_path('.claude/skills/stale-skill/SKILL.md'), 'stale');
 
     $this->artisan('package-boost:sync', ['--skills' => true])
+        ->expectsOutputToContain('- .claude/skills/stale-skill')
         ->assertSuccessful();
 
     expect(File::exists(package_path('.claude/skills/keep-me/SKILL.md')))->toBeTrue();
@@ -102,10 +107,45 @@ it('replaces existing guideline block on re-sync', function (): void {
 
     File::put(package_path('.ai/guidelines/test.md'), "## Version 2\n");
 
-    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+    $this->artisan('package-boost:sync', ['--guidelines' => true])
+        ->expectsOutputToContain('~ CLAUDE.md')
+        ->assertSuccessful();
 
     $content = File::get(package_path('CLAUDE.md'));
     expect($content)->toContain('Version 2');
     expect($content)->not->toContain('Version 1');
     expect(substr_count($content, '<package-boost-guidelines>'))->toBe(1);
+});
+
+it('reports unchanged on a clean re-sync', function (): void {
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--guidelines' => true])
+        ->expectsOutputToContain('total: 3 unchanged')
+        ->assertSuccessful();
+});
+
+it('exits non-zero with --check when sources diverge', function (): void {
+    $this->artisan('package-boost:sync', ['--check' => true, '--guidelines' => true])
+        ->expectsOutputToContain('+ CLAUDE.md')
+        ->expectsOutputToContain('Generated files are out of sync')
+        ->assertExitCode(1);
+
+    expect(File::exists(package_path('CLAUDE.md')))->toBeFalse();
+});
+
+it('exits zero with --check when output is up to date', function (): void {
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--check' => true, '--guidelines' => true])
+        ->expectsOutputToContain('total: 3 unchanged')
+        ->assertExitCode(0);
+});
+
+it('--check does not write skill targets when drift detected', function (): void {
+    $this->artisan('package-boost:sync', ['--check' => true, '--skills' => true])
+        ->expectsOutputToContain('+ .claude/skills/package-development')
+        ->assertExitCode(1);
+
+    expect(file_exists(package_path('.claude/skills/package-development')))->toBeFalse();
 });

@@ -5,14 +5,14 @@ namespace SanderMuller\PackageBoost\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Laravel\Boost\BoostServiceProvider;
-use Symfony\Component\Finder\Finder;
 
 class SyncCommand extends Command
 {
     protected $signature = 'package-boost:sync
         {--skills : Only sync skills}
         {--guidelines : Only sync guidelines}
-        {--mcp : Only sync MCP config}';
+        {--mcp : Only sync MCP config}
+        {--check : Report drift without writing; exits non-zero if sources diverge from generated files}';
 
     protected $description = 'Sync .ai/ skills and guidelines to agent directories';
 
@@ -32,21 +32,31 @@ class SyncCommand extends Command
     public function handle(): int
     {
         $root = $this->resolvePackageRoot();
+        $check = $this->option('check') === true;
+
         $syncSkills = $this->option('skills') === true;
         $syncGuidelines = $this->option('guidelines') === true;
         $syncMcp = $this->option('mcp') === true;
         $syncAll = ! $syncSkills && ! $syncGuidelines && ! $syncMcp;
 
-        if ($syncAll || $syncSkills) {
-            $this->syncSkills($root);
+        $drift = false;
+
+        if (($syncAll || $syncSkills) && $this->runSkills($root, $check)) {
+            $drift = true;
         }
 
-        if ($syncAll || $syncGuidelines) {
-            $this->syncGuidelines($root);
+        if (($syncAll || $syncGuidelines) && $this->runGuidelines($root, $check)) {
+            $drift = true;
         }
 
-        if ($syncAll || $syncMcp) {
-            $this->syncMcp($root);
+        if (($syncAll || $syncMcp) && $this->runMcp($root, $check)) {
+            $drift = true;
+        }
+
+        if ($check && $drift) {
+            $this->components->error('Generated files are out of sync. Run `package-boost:sync` without --check.');
+
+            return self::FAILURE;
         }
 
         return self::SUCCESS;
@@ -61,72 +71,166 @@ class SyncCommand extends Command
         return (string) getcwd();
     }
 
-    private function syncSkills(string $root): void
+    private function runSkills(string $root, bool $check): bool
     {
-        $skills = $this->collectSkills($root);
+        $skills = SyncSources::skills($root);
 
         if ($skills === []) {
             $this->components->warn('No skills found in .ai/skills/ or shipped package-boost skills.');
 
-            return;
+            return false;
         }
 
-        $skillNames = array_values(array_map(basename(...), $skills));
+        $this->line('Skills:');
+
+        $counts = ['new' => 0, 'updated' => 0, 'unchanged' => 0, 'removed' => 0];
 
         foreach (self::SKILL_TARGETS as $target) {
-            $targetDir = $root . DIRECTORY_SEPARATOR . $target;
+            $this->syncSkillsForTarget($root, $target, $skills, $check, $counts);
+        }
 
-            $this->removeStaleSkills($targetDir, $skillNames);
+        $this->line('  ' . SyncReporter::summaryLine($counts));
 
-            foreach ($skills as $skillName => $skillPath) {
-                $dest = $targetDir . DIRECTORY_SEPARATOR . $skillName;
+        return $counts['new'] + $counts['updated'] + $counts['removed'] > 0;
+    }
 
-                $this->linkOrCopy($skillPath, $dest);
+    /**
+     * @param  array<string, string>  $skills
+     * @param  array<string, int>     $counts
+     */
+    private function syncSkillsForTarget(string $root, string $target, array $skills, bool $check, array &$counts): void
+    {
+        $targetDir = $root . DIRECTORY_SEPARATOR . $target;
+
+        foreach ($skills as $name => $source) {
+            $dest = $targetDir . DIRECTORY_SEPARATOR . $name;
+            $action = SyncReporter::planSkillAction($source, $dest);
+            $counts[$action]++;
+
+            if ($action !== 'unchanged') {
+                $this->line('  ' . SyncReporter::glyph($action) . " {$target}/{$name}");
+
+                if (! $check) {
+                    $this->linkOrCopy($source, $dest);
+                }
             }
         }
 
-        $skillCount = count($skills);
-        $targetCount = count(self::SKILL_TARGETS);
-        $this->components->info("Synced {$skillCount} skills to {$targetCount} agent directories.");
-    }
+        $expectedNames = array_keys($skills);
 
-    /**
-     * Shipped resources first, user `.ai/` second — so user entries override
-     * shipped entries of the same name during later iteration.
-     *
-     * @return array<int, string>
-     */
-    private function sourceDirs(string $root, string $kind): array
-    {
-        return array_values(array_filter(
-            [
-                dirname(__DIR__, 2) . '/resources/boost/' . $kind,
-                $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . $kind,
-            ],
-            is_dir(...),
-        ));
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function collectSkills(string $root): array
-    {
-        $skills = [];
-
-        foreach ($this->sourceDirs($root, 'skills') as $dir) {
-            $entries = glob($dir . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
-
-            if ($entries === false) {
+        foreach ($this->existingSkillNames($targetDir) as $existing) {
+            if (in_array($existing, $expectedNames, true)) {
                 continue;
             }
 
-            foreach ($entries as $entry) {
-                $skills[basename($entry)] = $entry;
+            $counts['removed']++;
+            $this->line('  ' . SyncReporter::glyph('removed') . " {$target}/{$existing}");
+
+            if (! $check) {
+                $this->removeSkill($targetDir . DIRECTORY_SEPARATOR . $existing);
+            }
+        }
+    }
+
+    private function runGuidelines(string $root, bool $check): bool
+    {
+        $guidelines = SyncSources::guidelines($root);
+
+        if ($guidelines === '') {
+            $this->components->warn('No guideline files found in .ai/guidelines/ or shipped package-boost guidelines.');
+
+            return false;
+        }
+
+        $block = "<package-boost-guidelines>\n{$guidelines}\n</package-boost-guidelines>";
+        $drift = false;
+        $counts = ['new' => 0, 'updated' => 0, 'unchanged' => 0];
+
+        $this->line('Guidelines:');
+
+        foreach (self::GUIDELINE_TARGETS as $target) {
+            $filePath = $root . DIRECTORY_SEPARATOR . $target;
+            [$action, $diff] = SyncReporter::planGuidelineAction($filePath, $block);
+            $counts[$action]++;
+
+            if ($action !== 'unchanged') {
+                $drift = true;
+                $this->line('  ' . SyncReporter::glyph($action) . " {$target}{$diff}");
+
+                if (! $check) {
+                    $this->writeGuidelineBlock($filePath, $block);
+                }
             }
         }
 
-        return $skills;
+        $this->line('  ' . SyncReporter::summaryLine($counts));
+
+        return $drift;
+    }
+
+    private function runMcp(string $root, bool $check): bool
+    {
+        if (! class_exists(BoostServiceProvider::class, false)) {
+            $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
+
+            return false;
+        }
+
+        $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
+
+        /** @var array<string, array<string, mixed>> $existing */
+        $existing = file_exists($mcpPath)
+            ? (json_decode((string) file_get_contents($mcpPath), true) ?? [])
+            : [];
+
+        $desired = $existing;
+        $desired['mcpServers']['laravel-boost'] = [
+            'command' => 'vendor/bin/testbench',
+            'args' => ['boost:mcp'],
+        ];
+
+        $this->line('MCP:');
+
+        if ($existing === $desired && file_exists($mcpPath)) {
+            $this->line('  ' . SyncReporter::glyph('unchanged') . ' .mcp.json');
+
+            return false;
+        }
+
+        $action = file_exists($mcpPath) ? 'updated' : 'new';
+        $this->line('  ' . SyncReporter::glyph($action) . ' .mcp.json');
+
+        if (! $check) {
+            file_put_contents(
+                $mcpPath,
+                json_encode($desired, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function existingSkillNames(string $targetDir): array
+    {
+        if (! is_dir($targetDir)) {
+            return [];
+        }
+
+        $entries = glob($targetDir . DIRECTORY_SEPARATOR . '*');
+
+        if ($entries === false) {
+            return [];
+        }
+
+        return array_map(basename(...), $entries);
+    }
+
+    private function removeSkill(string $entry): void
+    {
+        is_link($entry) ? File::delete($entry) : File::deleteDirectory($entry);
     }
 
     private function linkOrCopy(string $source, string $dest): void
@@ -138,7 +242,7 @@ class SyncCommand extends Command
         File::ensureDirectoryExists(dirname($dest));
 
         $resolvedSource = realpath($source);
-        $relativePath = $this->relativePath($resolvedSource !== false ? $resolvedSource : $source, dirname($dest));
+        $relativePath = SyncReporter::relativePath($resolvedSource !== false ? $resolvedSource : $source, dirname($dest));
 
         if (@symlink($relativePath, $dest)) {
             return;
@@ -146,104 +250,6 @@ class SyncCommand extends Command
 
         File::ensureDirectoryExists($dest);
         File::copyDirectory($source, $dest);
-    }
-
-    private function relativePath(string $target, string $from): string
-    {
-        $target = str_replace('\\', '/', $target);
-        $resolvedFrom = realpath($from);
-        $from = str_replace('\\', '/', $resolvedFrom !== false ? $resolvedFrom : $from);
-
-        $targetParts = explode('/', $target);
-        $fromParts = explode('/', $from);
-
-        $common = 0;
-
-        while ($common < count($targetParts) && $common < count($fromParts) && $targetParts[$common] === $fromParts[$common]) {
-            ++$common;
-        }
-
-        $ups = count($fromParts) - $common;
-
-        return str_repeat('../', $ups) . implode('/', array_slice($targetParts, $common));
-    }
-
-    /**
-     * @param  array<int, string>  $currentSkillNames
-     */
-    private function removeStaleSkills(string $targetDir, array $currentSkillNames): void
-    {
-        if (! is_dir($targetDir)) {
-            return;
-        }
-
-        $existing = glob($targetDir . DIRECTORY_SEPARATOR . '*');
-
-        if ($existing === false) {
-            return;
-        }
-
-        foreach ($existing as $entry) {
-            if (! in_array(basename($entry), $currentSkillNames, true)) {
-                is_link($entry) ? File::delete($entry) : File::deleteDirectory($entry);
-            }
-        }
-    }
-
-    private function syncGuidelines(string $root): void
-    {
-        $guidelines = $this->collectGuidelines($root);
-
-        if ($guidelines === '') {
-            $this->components->warn('No guideline files found in .ai/guidelines/ or shipped package-boost guidelines.');
-
-            return;
-        }
-
-        $block = "<package-boost-guidelines>\n{$guidelines}\n</package-boost-guidelines>";
-
-        foreach (self::GUIDELINE_TARGETS as $target) {
-            $filePath = $root . DIRECTORY_SEPARATOR . $target;
-            $this->writeGuidelineBlock($filePath, $block);
-        }
-
-        $this->components->info('Synced guidelines to ' . count(self::GUIDELINE_TARGETS) . ' agent files.');
-    }
-
-    private function collectGuidelines(string $root): string
-    {
-        $groups = [];
-
-        foreach ($this->sourceDirs($root, 'guidelines') as $dir) {
-            $group = $this->readGuidelineDir($dir);
-
-            if ($group !== '') {
-                $groups[] = $group;
-            }
-        }
-
-        return implode("\n\n---\n\n", $groups);
-    }
-
-    private function readGuidelineDir(string $dir): string
-    {
-        $finder = Finder::create()
-            ->files()
-            ->in($dir)
-            ->name('*.md')
-            ->sortByName();
-
-        $parts = [];
-
-        foreach ($finder as $file) {
-            $content = trim($file->getContents());
-
-            if ($content !== '') {
-                $parts[] = $content;
-            }
-        }
-
-        return implode("\n\n", $parts);
     }
 
     private function writeGuidelineBlock(string $filePath, string $block): void
@@ -254,7 +260,7 @@ class SyncCommand extends Command
             $content = (string) file_get_contents($filePath);
 
             if (preg_match($pattern, $content) === 1) {
-                $content = (string) preg_replace($pattern, $block, $content, 1);
+                $content = (string) preg_replace($pattern, SyncReporter::escapeReplacement($block), $content, 1);
             } else {
                 $content = rtrim($content) . "\n\n" . $block . "\n";
             }
@@ -264,33 +270,5 @@ class SyncCommand extends Command
         }
 
         file_put_contents($filePath, $content);
-    }
-
-    private function syncMcp(string $root): void
-    {
-        if (! class_exists(BoostServiceProvider::class, false)) {
-            $this->components->warn('Laravel Boost is not installed — skipping MCP config.');
-
-            return;
-        }
-
-        $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
-
-        /** @var array<string, array<string, mixed>> $config */
-        $config = file_exists($mcpPath)
-            ? json_decode((string) file_get_contents($mcpPath), true) ?? []
-            : [];
-
-        $config['mcpServers']['laravel-boost'] = [
-            'command' => 'vendor/bin/testbench',
-            'args' => ['boost:mcp'],
-        ];
-
-        file_put_contents(
-            $mcpPath,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
-        );
-
-        $this->components->info('Synced MCP config to .mcp.json.');
     }
 }
