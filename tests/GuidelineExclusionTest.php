@@ -76,6 +76,30 @@ it('publishes config to the workbench config directory', function (): void {
     expect(array_values($paths)[0])->toBe(workbench_path('config/package-boost.php'));
 });
 
+it('retains shipped defaults for keys the workbench file does not set', function (): void {
+    $workbenchDir = workbench_path('config');
+    $workbenchFile = workbench_path('config/package-boost.php');
+
+    File::ensureDirectoryExists($workbenchDir);
+    file_put_contents(
+        $workbenchFile,
+        "<?php return ['some_future_key' => 'workbench-value'];\n"
+    );
+
+    try {
+        app()->register(PackageBoostServiceProvider::class, force: true);
+
+        /** @var array<int, string> $excludes */
+        $excludes = (array) config('package-boost.excluded_boost_guidelines');
+
+        expect(config('package-boost.some_future_key'))->toBe('workbench-value')
+            ->and($excludes)->toContain('foundation')
+            ->and($excludes)->toContain('livewire/core');
+    } finally {
+        @unlink($workbenchFile);
+    }
+});
+
 it('merges workbench/config/package-boost.php into package config', function (): void {
     $workbenchDir = workbench_path('config');
     $workbenchFile = workbench_path('config/package-boost.php');
