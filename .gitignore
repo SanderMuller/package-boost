@@ -12,3 +12,4 @@ testbench.yaml
 /coverage
 RELEASE_NOTES*.md
 .claude/scheduled_tasks.lock
+/storage/logs
