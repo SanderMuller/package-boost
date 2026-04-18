@@ -107,7 +107,7 @@ class SyncCommand extends Command
         foreach ($skills as $name => $source) {
             $dest = $targetDir . DIRECTORY_SEPARATOR . $name;
             [$action, $hint] = SyncReporter::planSkillAction($source, $dest);
-            $counts[$action]++;
+            ++$counts[$action];
 
             if ($action === 'unchanged' && ! $showUnchanged) {
                 continue;
@@ -127,7 +127,7 @@ class SyncCommand extends Command
                 continue;
             }
 
-            $counts['removed']++;
+            ++$counts['removed'];
             $this->line('  ' . SyncReporter::glyph('removed') . " {$target}/{$existing}");
 
             if (! $check) {
@@ -155,7 +155,7 @@ class SyncCommand extends Command
         foreach (self::GUIDELINE_TARGETS as $target) {
             $filePath = $root . DIRECTORY_SEPARATOR . $target;
             [$action, $diff] = SyncReporter::planGuidelineAction($filePath, $block);
-            $counts[$action]++;
+            ++$counts[$action];
 
             if ($action === 'unchanged') {
                 if ($showUnchanged) {

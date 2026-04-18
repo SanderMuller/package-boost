@@ -85,8 +85,8 @@ When `laravel/boost` is also installed as a dev dependency, you get:
 
 - **MCP server** — `package-boost:sync --mcp` generates the correct `.mcp.json` config
 - **Doc search** — Boost's `search-docs` tool works out of the box via Testbench
-- **Auto-discovered skill** — the `package-development` skill ships via `resources/boost/skills/` and is picked up by Boost automatically
-- **Package-tuned foundation** — ships `resources/boost/guidelines/foundation.md` with package-dev framing (Testbench harness, semver, public API discipline). Boost auto-discovers it as a third-party guideline.
+- **Shipped `package-development` skill** — ships via `resources/boost/skills/` and is bundled into `.claude/skills/` and `.github/skills/` by `package-boost:sync`, so downstream agents always get it regardless of Boost version.
+- **Package-tuned foundation** — ships `resources/boost/guidelines/foundation.md` with package-dev framing (Testbench harness, semver, public API discipline). `package-boost:sync` bundles it into the `<package-boost-guidelines>` block ahead of any user-authored `.ai/guidelines/` content, separated by a horizontal rule.
 - **App-only guidelines stripped** — defaults exclude `foundation` (Boost's app-tuned version), Inertia, Livewire, Filament, Volt, Folio, Pennant, Wayfinder, Nightwatch, Pulse, Herd, Sail, Tailwind, Vite, deployments, and `laravel/style|api|localization`
 
 ### Customising excluded guidelines

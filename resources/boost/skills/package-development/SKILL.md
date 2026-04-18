@@ -62,4 +62,12 @@ After editing files in `.ai/`, sync to agent directories:
 vendor/bin/testbench package-boost:sync
 ```
 
-This copies skills to `.claude/skills/` and `.github/skills/`, and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`.
+This copies skills to `.claude/skills/` and `.github/skills/`, and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`. Commit the generated files alongside the `.ai/` sources — they ship with the package.
+
+Verify CI and local state are in sync:
+
+```bash
+vendor/bin/testbench package-boost:sync --check
+```
+
+Exits non-zero when generated files drift from sources. Use in CI to catch commits where `.ai/*` was edited but generated files weren't re-synced.
