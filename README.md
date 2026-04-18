@@ -70,16 +70,27 @@ When `laravel/boost` is also installed as a dev dependency, you get:
 - **MCP server** — `package-boost:sync --mcp` generates the correct `.mcp.json` config
 - **Doc search** — Boost's `search-docs` tool works out of the box via Testbench
 - **Auto-discovered skill** — the `package-development` skill ships via `resources/boost/skills/` and is picked up by Boost automatically
+- **App-only guidelines stripped** — defaults exclude Inertia, Livewire, Filament, Volt, Folio, Pennant, Wayfinder, Nightwatch, Pulse, Herd, Sail, Tailwind, Vite, deployments, and `laravel/style|api|localization`
 
-## How It Differs from Boost
+### Customising excluded guidelines
 
-| | Boost | Package Boost |
-|---|---|---|
-| **For** | Laravel applications | Laravel packages |
-| **Runs via** | `php artisan` | `vendor/bin/testbench` |
-| **Discovers skills** | From app + vendor packages | From `.ai/` directory |
-| **Generates guidelines** | Composes from installed packages | Copies your markdown files |
-| **MCP server** | Built-in | Delegates to Boost when installed |
+Publish the config and edit `config/package-boost.php`:
+
+```bash
+vendor/bin/testbench vendor:publish --tag=package-boost-config
+```
+
+The `excluded_boost_guidelines` array is merged into `boost.guidelines.exclude` at boot. Keys match Boost's `GuidelineComposer` keys exactly (e.g. `livewire/core`, `filament/v4`, `herd`).
+
+## How It Differs from Laravel Boost
+
+|                          | Laravel Boost                    | Package Boost                     |
+|--------------------------|----------------------------------|-----------------------------------|
+| **For**                  | Laravel applications             | Laravel packages                  |
+| **Runs via**             | `php artisan`                    | `vendor/bin/testbench`            |
+| **Discovers skills**     | From app + vendor packages       | From `.ai/` directory             |
+| **Generates guidelines** | Composes from installed packages | Copies your markdown files        |
+| **MCP server**           | Built-in                         | Delegates to Boost when installed |
 
 ## License
 

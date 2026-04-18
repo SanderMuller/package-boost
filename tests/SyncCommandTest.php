@@ -1,15 +1,15 @@
-<?php
-
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
 
 use function Orchestra\Testbench\package_path;
 
-beforeEach(function (): void {
+beforeEach(static function (): void {
     // Clean up any generated files from previous runs
+    File::deleteDirectory(package_path('.ai'));
     File::deleteDirectory(package_path('.claude/skills'));
     File::deleteDirectory(package_path('.github/skills'));
+    File::delete(package_path('CLAUDE.md'));
     File::delete(package_path('AGENTS.md'));
     File::delete(package_path('.github/copilot-instructions.md'));
 });
