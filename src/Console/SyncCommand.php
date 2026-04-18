@@ -3,7 +3,6 @@
 namespace SanderMuller\PackageBoost\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
 use Laravel\Boost\BoostServiceProvider;
 
 class SyncCommand extends Command
@@ -53,7 +52,7 @@ class SyncCommand extends Command
             $this->output->writeln(rtrim(SyncFormatter::renderJson($plans, $check, $showUnchanged)));
         }
 
-        $drift = array_any($plans, static fn (SyncPlan $plan): bool => $plan->hasDrift());
+        $drift = $this->anyDrift($plans);
 
         if ($format === 'text' && $check && $drift) {
             $this->components->error('Generated files are out of sync. Run `package-boost:sync` without --check.');
@@ -136,6 +135,20 @@ class SyncCommand extends Command
         }
 
         return $plan;
+    }
+
+    /**
+     * @param  array<string, SyncPlan>  $plans
+     */
+    private function anyDrift(array $plans): bool
+    {
+        foreach ($plans as $plan) {
+            if ($plan->hasDrift()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function makeFormatter(): SyncFormatter
@@ -259,18 +272,18 @@ class SyncCommand extends Command
         foreach ([...$plan->new, ...$plan->updated] as $action) {
             $name = basename($action->target);
             $targetDir = $root . DIRECTORY_SEPARATOR . dirname($action->target);
-            $this->linkOrCopy($skills[$name], $targetDir . DIRECTORY_SEPARATOR . $name);
+            SyncWriter::linkOrCopy($skills[$name], $targetDir . DIRECTORY_SEPARATOR . $name);
         }
 
         foreach ($plan->removed as $action) {
-            $this->removeSkill($root . DIRECTORY_SEPARATOR . $action->target);
+            SyncWriter::removeSkill($root . DIRECTORY_SEPARATOR . $action->target);
         }
     }
 
     private function applyGuidelines(SyncPlan $plan, string $root, string $block): void
     {
         foreach ([...$plan->new, ...$plan->updated] as $action) {
-            $this->writeGuidelineBlock($root . DIRECTORY_SEPARATOR . $action->target, $block);
+            SyncWriter::writeGuidelineBlock($root . DIRECTORY_SEPARATOR . $action->target, $block);
         }
     }
 
@@ -305,49 +318,5 @@ class SyncCommand extends Command
         }
 
         return array_map(basename(...), $entries);
-    }
-
-    private function removeSkill(string $entry): void
-    {
-        is_link($entry) ? File::delete($entry) : File::deleteDirectory($entry);
-    }
-
-    private function linkOrCopy(string $source, string $dest): void
-    {
-        if (file_exists($dest) || is_link($dest)) {
-            is_link($dest) ? File::delete($dest) : File::deleteDirectory($dest);
-        }
-
-        File::ensureDirectoryExists(dirname($dest));
-
-        $resolvedSource = realpath($source);
-        $relativePath = SyncReporter::relativePath($resolvedSource !== false ? $resolvedSource : $source, dirname($dest));
-
-        if (@symlink($relativePath, $dest)) {
-            return;
-        }
-
-        File::ensureDirectoryExists($dest);
-        File::copyDirectory($source, $dest);
-    }
-
-    private function writeGuidelineBlock(string $filePath, string $block): void
-    {
-        $pattern = '/<package-boost-guidelines>.*?<\/package-boost-guidelines>/s';
-
-        if (file_exists($filePath)) {
-            $content = (string) file_get_contents($filePath);
-
-            if (preg_match($pattern, $content) === 1) {
-                $content = (string) preg_replace($pattern, SyncReporter::escapeReplacement($block), $content, 1);
-            } else {
-                $content = rtrim($content) . "\n\n" . $block . "\n";
-            }
-        } else {
-            File::ensureDirectoryExists(dirname($filePath));
-            $content = $block . "\n";
-        }
-
-        file_put_contents($filePath, $content);
     }
 }
