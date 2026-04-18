@@ -35,18 +35,8 @@ dedicated sub-table. Landed under
 
 ## 0.6.0 — structured output
 
-- **`--format=json`** on `package-boost:sync`. Schema roughly:
-  ```json
-  {
-    "skills":     { "new": [...], "updated": [...], "removed": [...], "unchanged": 24 },
-    "guidelines": { ... },
-    "mcp":        { "action": "unchanged" },
-    "drift": false
-  }
-  ```
-  Lets GitHub Actions / pre-release skills parse drift
-  programmatically without regex on glyph lines. Driven by
-  fluent-validation peer, deferred from 0.4.0.
+- ~~**`--format=json`**~~ — shipped. See
+  `specs/0.6.0/sync-format-json.md`.
 
 - **Composer `post-autoload-dump` auto-sync**. Ship an opt-in
   README snippet + a guarded `package-boost:sync` invocation safe to

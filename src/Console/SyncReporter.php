@@ -35,12 +35,12 @@ final class SyncReporter
     }
 
     /**
-     * @return array{0: 'new'|'updated'|'unchanged', 1: string}
+     * @return array{0: 'new'|'updated'|'unchanged', 1: string, 2: ?int}  action, display hint, raw line delta
      */
     public static function planGuidelineAction(string $filePath, string $block): array
     {
         if (! file_exists($filePath)) {
-            return ['new', ''];
+            return ['new', '', null];
         }
 
         $content = (string) file_get_contents($filePath);
@@ -51,10 +51,12 @@ final class SyncReporter
             : rtrim($content) . "\n\n" . $block . "\n";
 
         if ($newContent === $content) {
-            return ['unchanged', ''];
+            return ['unchanged', '', null];
         }
 
-        return ['updated', self::lineDiff($content, $newContent)];
+        $delta = self::lineDelta($content, $newContent);
+
+        return ['updated', self::formatLineDelta($delta), $delta];
     }
 
     /**
@@ -138,12 +140,16 @@ final class SyncReporter
         return str_repeat('../', $ups) . implode('/', array_slice($targetParts, $common));
     }
 
-    private static function lineDiff(string $before, string $after): string
+    private static function lineDelta(string $before, string $after): int
     {
         $beforeCount = substr_count($before, "\n") + ($before === '' ? 0 : 1);
         $afterCount = substr_count($after, "\n") + ($after === '' ? 0 : 1);
-        $delta = $afterCount - $beforeCount;
 
+        return $afterCount - $beforeCount;
+    }
+
+    private static function formatLineDelta(int $delta): string
+    {
         if ($delta === 0) {
             return ' (content updated)';
         }

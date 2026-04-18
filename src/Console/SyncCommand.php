@@ -13,7 +13,8 @@ class SyncCommand extends Command
         {--guidelines : Only sync guidelines}
         {--mcp : Only sync MCP config}
         {--check : Report drift without writing; exits non-zero if sources diverge from generated files}
-        {--show-unchanged : Print unchanged entries per line instead of only counting them in the summary}';
+        {--show-unchanged : Print unchanged entries per line instead of only counting them in the summary}
+        {--format=text : Output format — "text" (default, glyph-per-line) or "json" (structured, for CI parsing)}';
 
     protected $description = 'Sync .ai/ skills and guidelines to agent directories';
 
@@ -32,56 +33,81 @@ class SyncCommand extends Command
 
     public function handle(): int
     {
+        $formatOption = $this->option('format');
+        $format = is_string($formatOption) ? $formatOption : 'text';
+
+        if (! in_array($format, ['text', 'json'], true)) {
+            $this->components->error("Invalid --format value '{$format}'; expected 'text' or 'json'.");
+
+            return self::FAILURE;
+        }
+
         $root = $this->resolvePackageRoot();
         $check = $this->option('check') === true;
         $showUnchanged = $this->option('show-unchanged') === true;
+        $categories = $this->selectedCategories();
 
-        $syncSkills = $this->option('skills') === true;
-        $syncGuidelines = $this->option('guidelines') === true;
-        $syncMcp = $this->option('mcp') === true;
-        $syncAll = ! $syncSkills && ! $syncGuidelines && ! $syncMcp;
+        $plans = $this->runCategories($categories, $root, $check, $format === 'text' ? $showUnchanged : null);
 
-        $formatter = $this->makeFormatter();
-        $drift = false;
-
-        if (($syncAll || $syncSkills) && $this->runCategory('skills', $root, $check, $showUnchanged, $formatter)) {
-            $drift = true;
+        if ($format === 'json') {
+            $this->output->writeln(rtrim(SyncFormatter::renderJson($plans, $check, $showUnchanged)));
         }
 
-        if (($syncAll || $syncGuidelines) && $this->runCategory('guidelines', $root, $check, $showUnchanged, $formatter)) {
-            $drift = true;
-        }
+        $drift = array_any($plans, static fn (SyncPlan $plan): bool => $plan->hasDrift());
 
-        if (($syncAll || $syncMcp) && $this->runCategory('mcp', $root, $check, $showUnchanged, $formatter)) {
-            $drift = true;
-        }
-
-        if ($check && $drift) {
+        if ($format === 'text' && $check && $drift) {
             $this->components->error('Generated files are out of sync. Run `package-boost:sync` without --check.');
 
             return self::FAILURE;
         }
 
-        return self::SUCCESS;
+        return $check && $drift ? self::FAILURE : self::SUCCESS;
     }
 
-    private function runCategory(string $category, string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): bool
+    /**
+     * @return array<int, string>  selected category names; all three when no subcommand flag is set
+     */
+    private function selectedCategories(): array
     {
-        $plan = match ($category) {
-            'skills' => $this->runSkillsCategory($root, $check, $showUnchanged, $formatter),
-            'guidelines' => $this->runGuidelinesCategory($root, $check, $showUnchanged, $formatter),
-            'mcp' => $this->runMcpCategory($root, $check, $showUnchanged, $formatter),
-            default => SyncPlan::skipped('unknown-category'),
-        };
+        $flagged = array_keys(array_filter([
+            'skills' => $this->option('skills') === true,
+            'guidelines' => $this->option('guidelines') === true,
+            'mcp' => $this->option('mcp') === true,
+        ]));
 
-        return $plan->hasDrift();
+        return $flagged === [] ? ['skills', 'guidelines', 'mcp'] : $flagged;
     }
 
-    private function runSkillsCategory(string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): SyncPlan
+    /**
+     * @param  array<int, string>  $categories
+     * @param  ?bool  $showUnchanged  null suppresses text rendering (JSON mode)
+     * @return array<string, SyncPlan>
+     */
+    private function runCategories(array $categories, string $root, bool $check, ?bool $showUnchanged): array
+    {
+        $formatter = $this->makeFormatter();
+        $plans = [];
+
+        foreach ($categories as $category) {
+            $plans[$category] = match ($category) {
+                'skills' => $this->categoriseSkills($root, $check),
+                'guidelines' => $this->categoriseGuidelines($root, $check),
+                'mcp' => $this->categoriseMcp($root, $check),
+                default => SyncPlan::skipped('unknown-category'),
+            };
+
+            if ($showUnchanged !== null) {
+                $formatter->renderText($category, $plans[$category], $showUnchanged);
+            }
+        }
+
+        return $plans;
+    }
+
+    private function categoriseSkills(string $root, bool $check): SyncPlan
     {
         $sources = SyncSources::skills($root);
         $plan = $this->planSkills($root, $sources);
-        $formatter->renderText('skills', $plan, $showUnchanged);
 
         if (! $check) {
             $this->applySkills($plan, $root, $sources);
@@ -90,10 +116,9 @@ class SyncCommand extends Command
         return $plan;
     }
 
-    private function runGuidelinesCategory(string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): SyncPlan
+    private function categoriseGuidelines(string $root, bool $check): SyncPlan
     {
         [$plan, $block] = $this->planGuidelines($root);
-        $formatter->renderText('guidelines', $plan, $showUnchanged);
 
         if (! $check) {
             $this->applyGuidelines($plan, $root, $block);
@@ -102,10 +127,9 @@ class SyncCommand extends Command
         return $plan;
     }
 
-    private function runMcpCategory(string $root, bool $check, bool $showUnchanged, SyncFormatter $formatter): SyncPlan
+    private function categoriseMcp(string $root, bool $check): SyncPlan
     {
         [$plan, $desired] = $this->planMcp($root);
-        $formatter->renderText('mcp', $plan, $showUnchanged);
 
         if (! $check) {
             $this->applyMcp($plan, $root, $desired);
@@ -192,8 +216,8 @@ class SyncCommand extends Command
 
         foreach (self::GUIDELINE_TARGETS as $target) {
             $filePath = $root . DIRECTORY_SEPARATOR . $target;
-            [$action, $hint] = SyncReporter::planGuidelineAction($filePath, $block);
-            $entry = new SyncAction($target, hint: $hint !== '' ? $hint : null);
+            [$action, $hint, $lineDelta] = SyncReporter::planGuidelineAction($filePath, $block);
+            $entry = new SyncAction($target, hint: $hint !== '' ? $hint : null, lineDelta: $lineDelta);
 
             match ($action) {
                 'new' => $new[] = $entry,

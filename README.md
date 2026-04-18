@@ -61,6 +61,41 @@ vendor/bin/testbench package-boost:sync --check
 
 Reports planned actions without writing. Exits non-zero if any skill, guideline, or MCP target differs from its source. Use in CI to catch "forgot to sync" commits.
 
+#### JSON output
+
+```bash
+vendor/bin/testbench package-boost:sync --check --format=json
+```
+
+Emits a structured JSON document on stdout — parseable by `jq` or programmatic consumers:
+
+```json
+{
+    "schema": 1,
+    "check": true,
+    "drift": false,
+    "skills": { "new": [], "updated": [], "removed": [], "unchanged": 6 },
+    "guidelines": { "new": [], "updated": [], "removed": [], "unchanged": 3 },
+    "mcp": { "action": "unchanged", "target": ".mcp.json" }
+}
+```
+
+Example GitHub Actions step that fails the job and lists drifted targets in one go:
+
+```yaml
+- name: Check package-boost sync
+  run: |
+      report=$(vendor/bin/testbench package-boost:sync --check --format=json || true)
+      drift=$(echo "$report" | jq -r '.drift')
+      if [ "$drift" = "true" ]; then
+          echo "::error::package-boost sync drift detected"
+          echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
+          exit 1
+      fi
+```
+
+Pass `--show-unchanged` to turn the `unchanged` field from an int count into a full array of `{target}` entries.
+
 ### Verbose output
 
 ```bash

@@ -1,5 +1,6 @@
 <?php declare(strict_types=1);
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
 use function Orchestra\Testbench\package_path;
@@ -273,6 +274,72 @@ it('shows unchanged entries per line with --show-unchanged', function (): void {
         ->expectsOutputToContain('= CLAUDE.md')
         ->expectsOutputToContain('= AGENTS.md')
         ->assertSuccessful();
+});
+
+/**
+ * @param  array<string, mixed>  $options
+ * @return array{0: int, 1: array<mixed>}
+ */
+function captureJsonSync(array $options): array
+{
+    $exitCode = Artisan::call('package-boost:sync', $options);
+    $decoded = json_decode(trim(Artisan::output()), true);
+
+    return [$exitCode, is_array($decoded) ? $decoded : []];
+}
+
+it('emits JSON when --format=json is passed', function (): void {
+    [$exit, $json] = captureJsonSync(['--format' => 'json', '--check' => true]);
+
+    expect($exit)->toBe(1)
+        ->and($json)->toHaveKey('schema', 1)
+        ->and($json)->toHaveKey('check', true)
+        ->and($json)->toHaveKey('drift', true)
+        ->and($json)->toHaveKeys(['skills', 'guidelines', 'mcp']);
+
+    $skills = is_array($json['skills'] ?? null) ? $json['skills'] : [];
+    expect($skills)->toHaveKeys(['new', 'updated', 'removed', 'unchanged']);
+    expect($skills['unchanged'])->toBeInt();
+});
+
+it('JSON mode treats unchanged as an array with --show-unchanged', function (): void {
+    Artisan::call('package-boost:sync');
+
+    [$exit, $json] = captureJsonSync(['--format' => 'json', '--show-unchanged' => true, '--check' => true]);
+
+    $guidelines = is_array($json['guidelines'] ?? null) ? $json['guidelines'] : [];
+    $unchanged = is_array($guidelines['unchanged'] ?? null) ? $guidelines['unchanged'] : [];
+    $firstEntry = is_array($unchanged[0] ?? null) ? $unchanged[0] : [];
+
+    expect($exit)->toBe(0)
+        ->and($unchanged)->not->toBeEmpty()
+        ->and($firstEntry['target'] ?? null)->toBeString();
+});
+
+it('JSON mode reports drift=false on a clean repo', function (): void {
+    Artisan::call('package-boost:sync');
+
+    [$exit, $json] = captureJsonSync(['--format' => 'json', '--check' => true]);
+
+    expect($exit)->toBe(0)
+        ->and($json['drift'] ?? null)->toBeFalse();
+});
+
+it('JSON mode renders the MCP action object, not a collection', function (): void {
+    [$exit, $json] = captureJsonSync(['--format' => 'json', '--mcp' => true, '--check' => true]);
+
+    $mcp = is_array($json['mcp'] ?? null) ? $json['mcp'] : [];
+
+    expect($exit)->toBe(1)
+        ->and($mcp)->toHaveKey('action')
+        ->and($mcp['action'])->toBeIn(['new', 'updated', 'unchanged'])
+        ->and($mcp)->toHaveKey('target', '.mcp.json');
+});
+
+it('rejects an unknown --format value', function (): void {
+    $this->artisan('package-boost:sync', ['--format' => 'yaml'])
+        ->expectsOutputToContain("Invalid --format value 'yaml'; expected 'text' or 'json'.")
+        ->assertExitCode(1);
 });
 
 it('--check fails when only one category is drifting', function (): void {
