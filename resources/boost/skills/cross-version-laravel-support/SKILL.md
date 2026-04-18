@@ -117,5 +117,6 @@ blocker.
 ## When CI actually goes red
 
 This skill is preventive. If a CI matrix cell has already failed,
-activate `ci-matrix-troubleshooting` instead — that skill covers the
-diagnostic workflow for existing breakage.
+activate `ci-matrix-troubleshooting` instead — it covers the
+diagnostic workflow (reproduce locally, `composer why-not`, usual
+suspects, fix patterns) for existing breakage.

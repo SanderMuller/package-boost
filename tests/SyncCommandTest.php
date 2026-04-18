@@ -6,6 +6,7 @@ use function Orchestra\Testbench\package_path;
 
 /** Shipped skills that `package-boost:sync` always installs. Keep in sync with `resources/boost/skills/`. */
 const SHIPPED_SKILLS = [
+    'ci-matrix-troubleshooting',
     'cross-version-laravel-support',
     'package-development',
 ];

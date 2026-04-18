@@ -20,14 +20,12 @@ runner-agnostic phrasing, with Boost-specific commands moved to a
 dedicated sub-table. Landed under
 `specs/0.5.0/runner-agnostic-foundation.md`.
 
-### Ship two more skills
+### ~~Ship two more skills~~ — shipped
 
 - ~~`cross-version-laravel-support`~~ — shipped. See
   `specs/0.5.0/cross-version-laravel-support-skill.md`.
-- `ci-matrix-troubleshooting` — usual suspects when a matrix cell
-  goes red: `roave/security-advisories` floor bumps, testbench ↔
-  phpunit interlock, version-excluded cells (js-store peer's most
-  concrete ask).
+- ~~`ci-matrix-troubleshooting`~~ — shipped. See
+  `specs/0.5.0/ci-matrix-troubleshooting-skill.md`.
 
 ### `.ai/guidelines/` schema docs
 
