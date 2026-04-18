@@ -38,9 +38,14 @@ class PackageBoostServiceProvider extends ServiceProvider
         return $this->app->configPath('package-boost.php');
     }
 
+    protected function boostIsInstalled(): bool
+    {
+        return class_exists(BoostServiceProvider::class);
+    }
+
     private function mergeBoostGuidelineExcludes(): void
     {
-        if (! class_exists(BoostServiceProvider::class)) {
+        if (! $this->boostIsInstalled()) {
             return;
         }
 
