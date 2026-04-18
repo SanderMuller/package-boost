@@ -7,6 +7,7 @@ use Rector\CodingStyle\Rector\Encapsed\EncapsedStringsToSprintfRector;
 use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUselessParamTagRector;
 use Rector\DeadCode\Rector\ClassMethod\RemoveUselessReturnTagRector;
+use Rector\Php55\Rector\String_\StringClassNameToClassConstantRector;
 use Rector\Privatization\Rector\ClassMethod\PrivatizeFinalClassMethodRector;
 use Rector\TypeDeclaration\Rector\ArrowFunction\AddArrowFunctionReturnTypeRector;
 use RectorLaravel\Set\LaravelSetList;
@@ -36,12 +37,15 @@ return RectorConfig::configure()
         LaravelSetList::LARAVEL_110,
     ])
     ->withSkip([
-        DateFuncCallToCarbonRector::class,
         AddArrowFunctionReturnTypeRector::class,
+        DateFuncCallToCarbonRector::class,
         EncapsedStringsToSprintfRector::class,
         ExplicitBoolCompareRector::class,
         InlineArrayReturnAssignRector::class,
         PrivatizeFinalClassMethodRector::class,
         RemoveUselessParamTagRector::class,
         RemoveUselessReturnTagRector::class,
+        StringClassNameToClassConstantRector::class => [
+            __DIR__ . '/tests/Pest.php',
+        ],
     ]);
