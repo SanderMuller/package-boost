@@ -2,6 +2,112 @@
 
 All notable changes to `package-boost` will be documented in this file.
 
+## 0.8.1 - 2026-04-19
+
+### Package Boost v0.8.1
+
+Hygiene release. No code changes, no schema changes. Ships the repo
+housekeeping that accumulated since 0.8.0 — nothing here requires
+downstream action.
+
+#### What's new
+
+##### Composer auto-sync hook documented
+
+New *Composer auto-sync hook* section in the README under *Composer
+script*, documenting three variants that pair well with the 0.4.0
+`--check` gate:
+
+- **Strict (recommended)** — `@php vendor/bin/testbench package-boost:sync --check` as a `post-autoload-dump` entry. Fails
+  the install if anything drifted.
+- **Auto-fix** — runs the sync without `--check`; friendlier but
+  leaves uncommitted changes on a dirty branch.
+- **Boost-less** — narrows the hook to `--check --skills --guidelines` so Boost-less packages don't see the "Laravel Boost
+  is not installed" warn on every composer run (direct response to
+  the js-store peer's 0.8.0 verification feedback).
+
+Cross-platform note: the hook form works on both posix (`/bin/sh`)
+and Windows (`cmd.exe`). Chained shell operators (`&&`, `||`) are
+not portable across composer's shell layers — use separate array
+entries if you need multiple steps.
+
+Cross-linked from the shipped `package-development` skill's
+*Syncing* section so discoverability works both from the README and
+from the skill bundle downstream users see.
+
+##### `CHANGELOG.md`
+
+`CHANGELOG.md` now lives at the repo root, auto-maintained by a new
+`.github/workflows/update-changelog.yml` workflow. On each published
+GitHub release the workflow prepends the release body to
+`CHANGELOG.md` and commits back to `main` via
+`stefanzweifel/changelog-updater-action`. Seeded with entries from
+`v0.4.0` through `v0.8.0`.
+
+README now links to `CHANGELOG.md` between *How It Differs* and
+*License*.
+
+##### shields.io status badges
+
+README header carries four badges matching the sibling package's
+style: Packagist version, test workflow status, code-style workflow
+status, Laravel compatibility. Existing content-only badge (Laravel
+Compatibility) updated to `?style=flat` for visual consistency.
+
+##### Package-boost dogfoods itself
+
+`.ai/guidelines/` and `.ai/skills/` are now committed:
+
+- **Guidelines:** `release-automation` (explains the
+  `CHANGELOG.md` automation), `verification-before-completion`
+  (evidence-before-claims rule, mirrored from laravel-fluent-
+  validation with a preamble note pointing at the canonical copy).
+- **Skills:** `ai-guidelines`, `backend-quality`, `bug-fixing`,
+  `code-review`, `codex-review`, `evaluate`, `implement-spec`,
+  `pr-review-feedback`, `pre-release`, `write-spec` — 10 workflow
+  skills carried over from the sibling, adapted where they
+  referenced fluent-validation internals (backend-quality's
+  benchmark group → rector; bug-fixing's FluentRule example →
+  SyncCommand fixture; pr-review-feedback's GraphQL repo name;
+  pre-release rewritten for package-boost's matrix). The
+  `autoresearch` skill was deliberately skipped — its premise is
+  autonomous perf-optimization with a benchmark harness, which
+  package-boost doesn't have.
+
+`testbench.yaml` is now committed (previously gitignored) so
+contributors can run `vendor/bin/testbench package-boost:sync`
+without manual setup.
+
+Generated outputs (`CLAUDE.md`, `AGENTS.md`, `.github/copilot- instructions.md`, `.claude/skills/`, `.github/skills/`) remain
+gitignored — the sync-command tests exercise those exact filesystem
+paths and would clobber any committed copies every `pest` run. Run
+sync locally after `composer install`.
+
+`tests/SyncCommandTest.php::wipeArtifacts()` now targets only
+test-created fixtures (`test-skill`, `keep-me`, `stale-skill`,
+`test.md`) so committed `.ai/` content survives the suite. One test
+(`it ships foundation guideline even without a user .ai/guidelines directory`) renames-and-restores the dogfood guidelines dir to
+exercise the no-user-guidelines path that downstream consumers hit
+before authoring their own content.
+
+#### Upgrading
+
+```bash
+composer update sandermuller/package-boost
+
+```
+Nothing changes at runtime. Consumers see the README additions and
+the new `CHANGELOG.md` link on the next visit to the repo.
+
+If you want the auto-sync hook in your own package, add the
+relevant `post-autoload-dump` variant from the README to your
+package's `composer.json` `scripts` block.
+
+#### Compatibility
+
+No breaking changes. No schema changes. No config schema changes.
+Text and JSON sync output byte-compatible with 0.8.0.
+
 ## 0.8.0 - 2026-04-19
 
 Hygiene release. Ships a deprecation alias for the command name that
@@ -17,8 +123,8 @@ vendor/bin/testbench boost:update
 # Skills:
 #   + .claude/skills/package-development
 #   ...
-```
 
+```
 Several floating skill bundles reference a `boost:update` command
 that never existed — the real command has always been
 `package-boost:sync`. Before this release, typing `boost:update`
@@ -43,8 +149,8 @@ between.
 
 ```bash
 composer update sandermuller/package-boost
-```
 
+```
 No action required. If you have scripts or CI invoking
 `boost:update`, update them to `package-boost:sync` at your leisure
 — both work until 0.11.0.
@@ -87,22 +193,22 @@ and compared. Drift is reported as an `updated` action with a
 ```
 ~ .claude/skills/package-development (content: SKILL.md differs)
 ~ .claude/skills/package-development (content: SKILL.md differs, rules/a.md added, rules/b.md removed)
-```
 
+```
 **Large diffs collapse to counts:**
 
 ```
 ~ .claude/skills/package-development (content: 4 differ, 1 added, 1 removed)
-```
 
+```
 Hint is prefixed with `content:` to disambiguate from the existing
 `(symlink → ...)` hint shape used for symlink retargets. JSON
 output carries the same string in the `hint` field:
 
 ```json
 { "target": ".claude/skills/package-development", "hint": "content: SKILL.md differs" }
-```
 
+```
 ### `tests/tmp/` gitignored
 
 Test fixtures under `tests/tmp/` are now ignored so an aborted
@@ -113,8 +219,8 @@ test run (Ctrl-C, fatal) can't leak artefacts into a subsequent
 
 ```bash
 composer update sandermuller/package-boost
-```
 
+```
 Nothing changes for consumers on filesystems with working
 symlinks — the new code path is only reached when
 `SyncCommand::linkOrCopy`'s symlink attempt fails.
@@ -139,8 +245,7 @@ drift is detected.
   `xxh128` rather than SHA/MD5 because this is change-detection,
   not signing — xxh128 is ~20 GB/s vs SHA-256's ~500 MB/s and
   doesn't trip `phpstan-disallowed-calls`.
-- `SyncReporter::renderContentHint(array $source, array $dest):
-  string` — bucket classification of added / differ / removed
+- `SyncReporter::renderContentHint(array $source, array $dest): string` — bucket classification of added / differ / removed
   files; named-list when total ≤ 3, count summary above.
 - Eight new tests covering the hashTree / hint paths, dotted
   subdirectory skip, and a `SyncCommandTest` integration that
@@ -211,8 +316,8 @@ jq -r '
     (.guidelines.new, .guidelines.updated, .guidelines.removed)[]?.target,
     if .mcp.action == "new" or .mcp.action == "updated" then .mcp.target else empty end
 ' | sort -u | sed "s|^|  - |"
-```
 
+```
 ## Upgrading
 
 No code changes. Documentation only. Text and JSON output are
@@ -238,8 +343,8 @@ first.
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --format=json
-```
 
+```
 Emits a single JSON document on stdout; exit code still signals
 drift (0 clean, 1 on any `new`/`updated`/`removed` or MCP action
 other than `unchanged`). Warnings (Laravel Boost missing, no
@@ -270,8 +375,8 @@ rather than stderr text.
         "target": ".mcp.json"
     }
 }
-```
 
+```
 Field rules:
 
 - `schema` — currently `1`. Bumped on any breaking change to this
@@ -302,8 +407,8 @@ structurally instead of via warn text:
 ```json
 "skills": { "skipped": "no-sources" }
 "mcp":    { "action": "skipped", "reason": "laravel-boost-not-installed" }
-```
 
+```
 `drift` treats skipped categories as non-drift.
 
 ### Invalid format rejection
@@ -311,16 +416,16 @@ structurally instead of via warn text:
 ```bash
 vendor/bin/testbench package-boost:sync --format=yaml
 # ERROR  Invalid --format value 'yaml'; expected 'text' or 'json'.
-```
 
+```
 Exits non-zero with guidance.
 
 ## Upgrading
 
 ```bash
 composer update sandermuller/package-boost
-```
 
+```
 Text output is unchanged — existing callers of
 `package-boost:sync` see the same glyph + summary format. JSON is
 additive.
@@ -337,8 +442,8 @@ additive.
           echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
           exit 1
       fi
-```
 
+```
 ## Internals
 
 Substantial refactor inside `src/Console/` — zero user-visible
@@ -402,7 +507,7 @@ dead copy.
 The `php artisan test` row now reads:
 
 > The package's configured test runner
-> (`vendor/bin/pest` or `vendor/bin/phpunit`)
+(`vendor/bin/pest` or `vendor/bin/phpunit`)
 
 Boost-specific rows (`boost:install`, `boost:mcp`) move into a
 dedicated sub-table:
@@ -414,8 +519,8 @@ dedicated sub-table:
 |---|---|
 | `php artisan boost:install` | `vendor/bin/testbench boost:install` |
 | `php artisan boost:mcp`     | `vendor/bin/testbench boost:mcp`     |
-```
 
+```
 Readers without Boost installed see the heading, understand the rows
 don't apply, and skip. PHPUnit-only packages stop reading Pest-first
 ordering as advice.
@@ -465,8 +570,8 @@ kept reverse-engineering from sibling files:
   body is markdown, `description` is the trigger surface
 - **Rendering model** — shipped first, `---` divider, user content
   second
-- **Opting out** — cross-links to the README's _Customising excluded
-  guidelines_ section (no duplication)
+- **Opting out** — cross-links to the README's *Customising excluded
+  guidelines* section (no duplication)
 
 ### Foundation Cross-Version section trimmed
 
@@ -474,9 +579,9 @@ The paragraph-long advice moved into `cross-version-laravel-support`.
 Foundation now holds a pointer:
 
 > Supporting multiple Laravel / PHP majors is routine for packages.
-> Activate `cross-version-laravel-support` **before** writing the
-> code; activate `ci-matrix-troubleshooting` **after** a matrix cell
-> has failed.
+Activate `cross-version-laravel-support` **before** writing the
+code; activate `ci-matrix-troubleshooting` **after** a matrix cell
+has failed.
 
 Single source of truth for the workflow, with a disambiguator so
 readers know which skill to pick without drilling in.
@@ -486,14 +591,14 @@ readers know which skill to pick without drilling in.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
-```
 
+```
 Or, in CI:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check
-```
 
+```
 ## Migration impact
 
 Downstream `--check` will report drift on the first run after upgrade:
@@ -540,8 +645,8 @@ Skills:
 Guidelines:
   total: 3 unchanged
 MCP:
-```
 
+```
 After (0.4.1):
 
 ```
@@ -551,8 +656,8 @@ Guidelines:
   total: 3 unchanged
 MCP:
   total: 1 unchanged
-```
 
+```
 The three categories now render uniformly. `--show-unchanged` still
 controls whether the per-target `= .mcp.json` line is printed
 alongside the summary.
@@ -561,8 +666,8 @@ alongside the summary.
 
 ```bash
 composer update sandermuller/package-boost
-```
 
+```
 No config or behavior changes beyond the output format.
 
 ## Compatibility
@@ -583,8 +688,8 @@ handling against malformed input.
 
 ```bash
 vendor/bin/testbench package-boost:sync --check
-```
 
+```
 Computes planned actions, writes nothing, exits non-zero if any skill,
 guideline, or MCP target diverges from its source. Use in CI to catch
 commits where `.ai/*` content was edited but the generated files
@@ -595,8 +700,8 @@ Combines with the subcommand flags:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --guidelines
-```
 
+```
 ### Per-target delta output
 
 Every sync now shows a per-target line for changes, with glyphs and
@@ -616,8 +721,8 @@ Guidelines:
 
 MCP:
   = .mcp.json (unchanged; not listed)
-```
 
+```
 Glyphs:
 
 | glyph | meaning |
@@ -631,20 +736,20 @@ Skill updates annotate the new symlink target:
 
 ```
 ~ .claude/skills/package-development (symlink → ../../vendor/sandermuller/package-boost/resources/boost/skills/package-development)
-```
 
+```
 Guideline updates show line-delta:
 
 ```
 ~ CLAUDE.md (+12 lines)
-```
 
+```
 ### `--show-unchanged` flag
 
 ```bash
 vendor/bin/testbench package-boost:sync --show-unchanged
-```
 
+```
 Default output is compact — unchanged targets are folded into
 `total: ...` rather than listed per line, to avoid flooding large
 guideline trees. Pass `--show-unchanged` to print every `=` entry
@@ -669,15 +774,15 @@ Four regression tests guard these paths.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
-```
 
+```
 Add a drift check to CI. Example GitHub Actions step:
 
 ```yaml
 - name: Check package-boost sync
   run: vendor/bin/testbench package-boost:sync --check
-```
 
+```
 ## Internal refactor
 
 - Extracted `SyncReporter` — pure functions for planning actions
@@ -705,4 +810,3 @@ info lines.
 - **Content-drift detection on copied (non-symlink) skills**: requires
   recursive tree hashing; edge case for filesystems without symlink
   support. Tracked.
-
