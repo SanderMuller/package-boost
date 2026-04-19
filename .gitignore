@@ -13,3 +13,4 @@ testbench.yaml
 RELEASE_NOTES*.md
 .claude/scheduled_tasks.lock
 /storage/logs
+/tests/tmp
