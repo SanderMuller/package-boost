@@ -36,6 +36,24 @@ function wipeArtifacts(): void
     File::delete(package_path('AGENTS.md'));
     File::delete(package_path('.github/copilot-instructions.md'));
     File::delete(package_path('.mcp.json'));
+
+    // Vendor fixture packages written into the real vendor/ tree during
+    // discovery tests. Scoped vendor name keeps blast radius tight.
+    File::deleteDirectory(package_path('vendor/pb-fixture'));
+}
+
+function seedVendorSkill(string $package, string $name, string $body = "---\nname: __NAME__\ndescription: Vendor fixture.\n---\n"): void
+{
+    $dir = package_path('vendor/' . $package . '/resources/boost/skills/' . $name);
+    File::ensureDirectoryExists($dir);
+    File::put($dir . '/SKILL.md', str_replace('__NAME__', $name, $body));
+}
+
+function seedVendorGuideline(string $package, string $filename, string $body): void
+{
+    $dir = package_path('vendor/' . $package . '/resources/boost/guidelines');
+    File::ensureDirectoryExists($dir);
+    File::put($dir . '/' . $filename, $body);
 }
 
 it('syncs user and shipped skills to agent directories', function (): void {
@@ -380,6 +398,93 @@ it('--check detects content drift on a copied (non-symlink) skill dest', functio
     $this->artisan('package-boost:sync', ['--check' => true, '--skills' => true])
         ->expectsOutputToContain('~ .claude/skills/keep-me (content: SKILL.md differs)')
         ->assertExitCode(1);
+});
+
+it('discovers skills contributed by installed vendor packages', function (): void {
+    seedVendorSkill('pb-fixture/alpha', 'alpha-skill');
+
+    $this->artisan('package-boost:sync', ['--skills' => true])
+        ->expectsOutputToContain('+ .claude/skills/alpha-skill')
+        ->assertSuccessful();
+
+    expect(File::exists(package_path('.claude/skills/alpha-skill/SKILL.md')))->toBeTrue();
+});
+
+it('lets host .ai/ override a vendor-contributed skill of the same name', function (): void {
+    seedVendorSkill('pb-fixture/alpha', 'keep-me', "---\nname: keep-me\ndescription: vendor version.\n---\n");
+
+    File::ensureDirectoryExists(package_path('.ai/skills/keep-me'));
+    File::put(package_path('.ai/skills/keep-me/SKILL.md'), "---\nname: keep-me\ndescription: host version.\n---\n");
+
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    expect(File::get(package_path('.claude/skills/keep-me/SKILL.md')))->toContain('host version');
+});
+
+it('merges vendor-contributed guidelines into the composed block', function (): void {
+    seedVendorGuideline('pb-fixture/alpha', 'conventions.md', "## Alpha Convention\n\nFrom vendor fixture.\n");
+
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    $claude = File::get(package_path('CLAUDE.md'));
+    expect($claude)->toContain('Alpha Convention')
+        ->and($claude)->toContain('From vendor fixture.')
+        ->and($claude)->toContain('# Package Boost Guidelines');
+
+    $foundationPos = strpos($claude, '# Package Boost Guidelines');
+    $vendorPos = strpos($claude, 'Alpha Convention');
+    expect($foundationPos !== false && $vendorPos !== false && $foundationPos < $vendorPos)->toBeTrue();
+});
+
+it('skips vendor discovery when disabled via config', function (): void {
+    seedVendorSkill('pb-fixture/alpha', 'alpha-skill');
+
+    config()->set('package-boost.discover_vendor_packages', false);
+
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    expect(File::exists(package_path('.claude/skills/alpha-skill')))->toBeFalse();
+});
+
+it('does not re-ingest own shipped content when surfaced via vendor symlink', function (): void {
+    // Simulate package-boost consumed as its own vendored dep — the symlinked
+    // dir resolves to the shipped resources. Realpath guard must drop it even
+    // when the user wipes the default exclude list.
+    $link = package_path('vendor/pb-fixture/self-mirror');
+    File::ensureDirectoryExists($link . '/resources');
+    symlink(package_path('resources/boost'), $link . '/resources/boost');
+
+    config()->set('package-boost.excluded_vendor_packages', []);
+
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    // package-development appears exactly once as shipped, not again as vendor
+    // duplicate. Count target-dir entries to catch silent re-linking.
+    $glob = glob(package_path('.claude/skills/package-development*'));
+    $entries = $glob === false ? [] : $glob;
+    expect($entries)->toHaveCount(1);
+});
+
+it('--check flags vendor-contributed skills as drift on a clean target', function (): void {
+    seedVendorSkill('pb-fixture/alpha', 'vendor-drift-skill');
+
+    $this->artisan('package-boost:sync', ['--check' => true, '--skills' => true])
+        ->expectsOutputToContain('+ .claude/skills/vendor-drift-skill')
+        ->assertExitCode(1);
+
+    expect(File::exists(package_path('.claude/skills/vendor-drift-skill')))->toBeFalse();
+});
+
+it('honours excluded_vendor_packages', function (): void {
+    seedVendorSkill('pb-fixture/alpha', 'alpha-skill');
+    seedVendorSkill('pb-fixture/beta', 'beta-skill');
+
+    config()->set('package-boost.excluded_vendor_packages', ['pb-fixture/alpha']);
+
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    expect(File::exists(package_path('.claude/skills/alpha-skill')))->toBeFalse()
+        ->and(File::exists(package_path('.claude/skills/beta-skill/SKILL.md')))->toBeTrue();
 });
 
 it('--check fails when only one category is drifting', function (): void {

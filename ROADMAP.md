@@ -20,8 +20,10 @@ shipped with 0.8.1; no concrete requests open.
   Two fix shapes suggested upstream: (a) walk up for a non-skeleton
   `composer.json`, (b) a `Composer::rootComposerJsonPath()` hook
   Testbench can override. Package Boost's shipped-bundling approach
-  (0.3.3+) sidesteps the bug, but fixing upstream unblocks the
-  wider ecosystem.
+  (0.3.3+) sidesteps the bug, and vendor-package discovery
+  provides a native path that doesn't rely on Boost's Composer
+  resolver — but fixing upstream unblocks the wider ecosystem for
+  Boost-only consumers.
 
 ## Sunset
 

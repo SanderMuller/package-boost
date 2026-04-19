@@ -4,6 +4,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Vendor Package Discovery
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, `package-boost:sync` scans
+    | `vendor/<vendor>/<name>/resources/boost/{skills,guidelines}` for
+    | contributions from installed packages and merges them between the
+    | shipped defaults and the host's `.ai/` content. Host `.ai/` always
+    | wins over vendor contributions on skill-name collisions.
+    |
+    | Exclude specific packages (by `vendor/name`) from discovery if they
+    | ship Boost-only content that doesn't apply to packages.
+    |
+    */
+
+    'discover_vendor_packages' => true,
+
+    'excluded_vendor_packages' => [
+        'sandermuller/package-boost',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Excluded Laravel Boost Guidelines
     |--------------------------------------------------------------------------
     |

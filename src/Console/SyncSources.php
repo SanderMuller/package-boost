@@ -66,17 +66,102 @@ final class SyncSources
     }
 
     /**
+     * Ordering is load-bearing: later dirs override earlier entries when a
+     * skill name collides, and guideline groups concatenate in this order.
+     * Shipped → vendor packages (alphabetical) → host `.ai/`, so host always
+     * wins over a vendor contribution and vendors win over shipped defaults.
+     *
      * @return array<int, string>
      */
     private static function dirs(string $root, string $kind): array
     {
-        return array_values(array_filter(
-            [
-                dirname(__DIR__, 2) . '/resources/boost/' . $kind,
-                $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . $kind,
-            ],
-            is_dir(...),
-        ));
+        $dirs = array_merge(
+            [dirname(__DIR__, 2) . '/resources/boost/' . $kind],
+            self::vendorDirs($root, $kind),
+            [$root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . $kind],
+        );
+
+        return array_values(array_filter($dirs, is_dir(...)));
+    }
+
+    /**
+     * Discover `vendor/<vendor>/<name>/resources/boost/<kind>` contributions
+     * from installed packages. Glob-based so test stubs work without a
+     * composer install step.
+     *
+     * @return array<int, string>  absolute paths, sorted by package name
+     */
+    private static function vendorDirs(string $root, string $kind): array
+    {
+        if (! self::vendorDiscoveryEnabled()) {
+            return [];
+        }
+
+        $excluded = self::vendorDiscoveryExclusions();
+        $vendorRoot = $root . DIRECTORY_SEPARATOR . 'vendor';
+        $matches = glob($vendorRoot . '/*/*/resources/boost/' . $kind, GLOB_ONLYDIR);
+
+        if ($matches === false || $matches === []) {
+            return [];
+        }
+
+        // Realpath of the shipped kind-dir — any vendor match that resolves to
+        // the same directory (e.g. package-boost consumed as its own vendored
+        // dep, or a symlinked dev checkout) would duplicate shipped content.
+        // Structural guard, independent of the user-configurable exclude list.
+        $shippedReal = realpath(dirname(__DIR__, 2) . '/resources/boost/' . $kind);
+
+        $byPackage = [];
+
+        foreach ($matches as $dir) {
+            $relative = substr($dir, strlen($vendorRoot) + 1);
+            $segments = explode(DIRECTORY_SEPARATOR, $relative);
+
+            if (count($segments) < 2) {
+                continue;
+            }
+
+            $package = $segments[0] . '/' . $segments[1];
+
+            if (in_array($package, $excluded, true)) {
+                continue;
+            }
+
+            if ($shippedReal !== false && realpath($dir) === $shippedReal) {
+                continue;
+            }
+
+            $byPackage[$package] = $dir;
+        }
+
+        ksort($byPackage);
+
+        return array_values($byPackage);
+    }
+
+    private static function vendorDiscoveryEnabled(): bool
+    {
+        if (! function_exists('config')) {
+            return true;
+        }
+
+        return (bool) config('package-boost.discover_vendor_packages', true);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function vendorDiscoveryExclusions(): array
+    {
+        $default = ['sandermuller/package-boost'];
+
+        if (! function_exists('config')) {
+            return $default;
+        }
+
+        $configured = config('package-boost.excluded_vendor_packages', $default);
+
+        return is_array($configured) ? array_values(array_filter($configured, is_string(...))) : $default;
     }
 
     private static function readGuidelineDir(string $dir): string

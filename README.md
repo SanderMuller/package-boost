@@ -210,15 +210,43 @@ vendor/bin/testbench vendor:publish --tag=package-boost-config
 
 The `excluded_boost_guidelines` array is merged into `boost.guidelines.exclude` at boot. Keys match Boost's `GuidelineComposer` keys exactly (e.g. `livewire/core`, `filament/v4`, `herd`).
 
+### Vendor-contributed skills and guidelines
+
+Installed Composer packages that ship
+`resources/boost/skills/<name>/SKILL.md` or
+`resources/boost/guidelines/*.md` are picked up automatically and
+merged into the sync. Load order:
+
+1. Package-boost's shipped defaults
+2. Vendor packages (alphabetical by `vendor/name`)
+3. Host `.ai/`
+
+For **skills**, later entries override earlier ones on name
+collisions — host `.ai/skills/<name>` always wins over a vendor
+contribution of the same name. For **guidelines**, each source
+contributes its own block and they concatenate in load order,
+separated by `---`.
+
+Disable discovery entirely or skip specific packages via
+`config/package-boost.php`:
+
+```php
+'discover_vendor_packages' => true,
+
+'excluded_vendor_packages' => [
+    'sandermuller/package-boost',
+],
+```
+
 ## How It Differs from Laravel Boost
 
-|                          | Laravel Boost                    | Package Boost                     |
-|--------------------------|----------------------------------|-----------------------------------|
-| **For**                  | Laravel applications             | Laravel packages                  |
-| **Runs via**             | `php artisan`                    | `vendor/bin/testbench`            |
-| **Discovers skills**     | From app + vendor packages       | From `.ai/` directory             |
-| **Generates guidelines** | Composes from installed packages | Copies your markdown files        |
-| **MCP server**           | Built-in                         | Delegates to Boost when installed |
+|                          | Laravel Boost                    | Package Boost                                  |
+|--------------------------|----------------------------------|------------------------------------------------|
+| **For**                  | Laravel applications             | Laravel packages                               |
+| **Runs via**             | `php artisan`                    | `vendor/bin/testbench`                         |
+| **Discovers skills**     | From app + vendor packages       | From `.ai/` + `vendor/*/resources/boost/`      |
+| **Generates guidelines** | Composes from installed packages | Copies `.ai/` + merges vendor contributions    |
+| **MCP server**           | Built-in                         | Delegates to Boost when installed              |
 
 ## Changelog
 
