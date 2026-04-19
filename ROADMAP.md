@@ -67,11 +67,12 @@ dedicated sub-table. Landed under
   (0.3.3+) means this doesn't block us, but fixing upstream
   unblocks the wider ecosystem.
 
-- **Deprecation alias for old `boost:update` references.** Old skill
-  bundles floating around reference `boost:update`, which doesn't
-  exist — the real command is `package-boost:sync`. Either register
-  a deprecated alias that prints a migration message, or document
-  in a release note. Low urgency.
+## Sunset
+
+- **`boost:update` alias** — shipped as a deprecated alias for
+  `package-boost:sync` with a migration warning. Introduced in 0.8.0;
+  target removal in 0.11.0 (three minor releases). See
+  `specs/ongoing/boost-update-deprecation-alias.md`.
 
 ## Out of scope (for now)
 

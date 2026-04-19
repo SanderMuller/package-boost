@@ -6,6 +6,7 @@ use Illuminate\Config\Repository;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Boost\BoostServiceProvider;
 use SanderMuller\PackageBoost\Console\SyncCommand;
+use SanderMuller\PackageBoost\Console\UpdateCommand;
 
 class PackageBoostServiceProvider extends ServiceProvider
 {
@@ -19,6 +20,7 @@ class PackageBoostServiceProvider extends ServiceProvider
 
         $this->commands([
             SyncCommand::class,
+            UpdateCommand::class,
         ]);
     }
 
