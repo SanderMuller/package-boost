@@ -1,0 +1,8 @@
+# Committed (not gitignored) so contributors can run
+# `vendor/bin/testbench package-boost:sync` without manual setup. The sync
+# command is registered only when our service provider loads.
+
+laravel: '@testbench'
+
+providers:
+  - SanderMuller\PackageBoost\PackageBoostServiceProvider

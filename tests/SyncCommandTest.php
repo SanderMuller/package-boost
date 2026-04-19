@@ -22,7 +22,14 @@ afterEach(function (): void {
 
 function wipeArtifacts(): void
 {
-    File::deleteDirectory(package_path('.ai'));
+    // Delete test-created fixtures only; `.ai/guidelines/*.md` belonging to
+    // the repo is committed content and must survive across test runs.
+    foreach (['test-skill', 'keep-me', 'stale-skill'] as $name) {
+        File::deleteDirectory(package_path('.ai/skills/' . $name));
+    }
+
+    File::delete(package_path('.ai/guidelines/test.md'));
+
     File::deleteDirectory(package_path('.claude/skills'));
     File::deleteDirectory(package_path('.github/skills'));
     File::delete(package_path('CLAUDE.md'));
@@ -88,16 +95,34 @@ it('syncs shipped foundation and user guidelines into agent files', function ():
 });
 
 it('ships foundation guideline even without a user .ai/guidelines directory', function (): void {
-    $this->artisan('package-boost:sync', ['--guidelines' => true])
-        ->expectsOutputToContain('+ CLAUDE.md')
-        ->assertSuccessful();
+    // This repo dogfoods .ai/guidelines/ (release-automation, verification-
+    // before-completion). Temporarily hide it so we can exercise the
+    // no-user-guidelines path — the one downstream consumers will hit
+    // before authoring their own content.
+    $guidelines = package_path('.ai/guidelines');
+    $stash = package_path('.ai/guidelines.stash');
+    $hasDogfood = is_dir($guidelines);
 
-    $claude = File::get(package_path('CLAUDE.md'));
-    expect($claude)->toContain('# Package Boost Guidelines')
-        ->and($claude)->toContain('Foundational Context')
-        ->and($claude)->toContain('configured test runner')
-        ->and($claude)->toContain('Commands that require `laravel/boost`')
-        ->and($claude)->not->toContain("\n\n---\n\n");
+    if ($hasDogfood) {
+        rename($guidelines, $stash);
+    }
+
+    try {
+        $this->artisan('package-boost:sync', ['--guidelines' => true])
+            ->expectsOutputToContain('+ CLAUDE.md')
+            ->assertSuccessful();
+
+        $claude = File::get(package_path('CLAUDE.md'));
+        expect($claude)->toContain('# Package Boost Guidelines')
+            ->and($claude)->toContain('Foundational Context')
+            ->and($claude)->toContain('configured test runner')
+            ->and($claude)->toContain('Commands that require `laravel/boost`')
+            ->and($claude)->not->toContain("\n\n---\n\n");
+    } finally {
+        if ($hasDogfood) {
+            rename($stash, $guidelines);
+        }
+    }
 });
 
 it('ships the Authoring guidelines section in the package-development skill', function (): void {
