@@ -80,7 +80,19 @@ Emits a structured JSON document on stdout — parseable by `jq` or programmatic
 }
 ```
 
-Example GitHub Actions step that fails the job and lists drifted targets in one go:
+**Shape contract:**
+
+- `skills` and `guidelines` carry `{ new, updated, removed, unchanged }`. Each non-unchanged array holds per-target entries with fields:
+  - `target` (string) — always present, relative to the package root.
+  - `hint` (string, optional) — advisory prose. For skills: `"symlink → <relative target>"` on `updated` actions. For guidelines: `"+N lines"` / `"-N lines"` / `"content updated"` on `updated`/`new` actions. No hint on `removed` or `unchanged`. Not a command-to-run; the fix for any drift is `package-boost:sync` without `--check`.
+  - `line_delta` (int, optional, guidelines only) — integer line difference of the target file between its current state and what the sync would write. Only the `<package-boost-guidelines>` block is rewritten, so `line_delta` is effectively the synced-region delta (file content outside the block is never touched).
+- `mcp` carries `{ action, target }` — always a single object, never an array. `action` is `"new"`, `"updated"`, or `"unchanged"`.
+- `skipped` categories report structurally:
+  - `skills` / `guidelines` when no sources are found: `{ "skipped": "no-sources" }`.
+  - `mcp` when Laravel Boost isn't installed: `{ "action": "skipped", "reason": "laravel-boost-not-installed" }`.
+- Arrays are stable-sorted by `target` for deterministic diffs across runs.
+
+Example GitHub Actions step that fails the job and lists drifted targets:
 
 ```yaml
 - name: Check package-boost sync
@@ -89,12 +101,16 @@ Example GitHub Actions step that fails the job and lists drifted targets in one 
       drift=$(echo "$report" | jq -r '.drift')
       if [ "$drift" = "true" ]; then
           echo "::error::package-boost sync drift detected"
-          echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
+          echo "$report" | jq -r '
+              (.skills.new, .skills.updated, .skills.removed)[]?.target,
+              (.guidelines.new, .guidelines.updated, .guidelines.removed)[]?.target,
+              if .mcp.action == "new" or .mcp.action == "updated" then .mcp.target else empty end
+          ' | sort -u | sed "s|^|  - |"
           exit 1
       fi
 ```
 
-Pass `--show-unchanged` to turn the `unchanged` field from an int count into a full array of `{target}` entries.
+Pass `--show-unchanged` to turn the `unchanged` field from an int count into a full array of `{ target }` entries.
 
 ### Verbose output
 
