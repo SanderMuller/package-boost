@@ -2,6 +2,138 @@
 
 All notable changes to `package-boost` will be documented in this file.
 
+## 0.9.0 - 2026-04-19
+
+### Package Boost v0.9.0
+
+Discovers skills and guidelines shipped by sibling packages.
+`package-boost:sync` now walks `vendor/*/*/resources/boost/` and
+merges contributions between the shipped defaults and the host's
+`.ai/`. First native path that doesn't rely on Laravel Boost's
+Composer resolver, sidestepping the testbench-skeleton discovery
+bug that blocks Boost's own scan under package development.
+
+#### What's new
+
+##### Vendor-contributed skills and guidelines
+
+Any installed Composer package that ships
+`resources/boost/skills/<name>/SKILL.md` or
+`resources/boost/guidelines/*.md` is now picked up by
+`package-boost:sync` automatically. Load order:
+
+1. Package-boost's shipped defaults
+2. Vendor packages (alphabetical by `vendor/name`)
+3. Host `.ai/`
+
+For **skills**, later entries override earlier ones on name
+collisions — `host/.ai/skills/<name>` always wins over a vendor
+skill of the same name. For **guidelines**, each source
+contributes its own block and they concatenate in load order,
+separated by `---`.
+
+This means a package author can ship, for example, a
+`resources/boost/skills/fluent-validation-testing/SKILL.md`
+bundled with their library, and downstream consumers running
+`package-boost:sync` will pick it up in their `.claude/skills/`
+and `.github/skills/` directories alongside their own content —
+no extra wiring, no manual copy.
+
+##### Configuration
+
+Two new keys in `config/package-boost.php`, both shipped with
+sensible defaults so existing consumers see the behavior
+activate on `composer update` with no publish step required:
+
+```php
+'discover_vendor_packages' => true,
+
+'excluded_vendor_packages' => [
+    'sandermuller/package-boost',
+],
+
+```
+- `discover_vendor_packages` — toggle off to restore 0.8.x
+  behavior (shipped + host `.ai/` only). No consumer has asked
+  for this yet; the flag exists as an escape hatch.
+- `excluded_vendor_packages` — skip specific packages by
+  `vendor/name`. Default excludes package-boost itself so a
+  transitively-installed copy can't double-ingest shipped
+  content through its own `resources/boost/`.
+
+##### Self-ingestion guard
+
+Beyond the configurable exclude list, `SyncSources::vendorDirs()`
+realpath-compares each vendor match against the shipped
+`resources/boost/<kind>` directory and drops exact matches. This
+is structural, not user-tunable — so even a consumer who
+deliberately clears `excluded_vendor_packages` can't double-
+ingest shipped skills through a symlinked dev checkout or a
+transitive dep surfacing package-boost under its own `vendor/`
+tree.
+
+##### Why now
+
+Laravel Boost's upstream package discovery reads
+`base_path('composer.json')`, which under Testbench resolves to
+the testbench-core skeleton with no `require` entries. That
+means `resources/boost/{skills,guidelines}/` content shipped by
+third-party packages is invisible to Boost itself when run via
+`vendor/bin/testbench boost:install` inside a package repo.
+
+Package Boost's shipped-bundling approach (0.3.3+) carried
+package-boost's own skills through this gap. Vendor discovery
+(0.9.0) extends the same idea to arbitrary packages — any
+dependency that ships `resources/boost/` gets surfaced, whether
+Boost is installed or not.
+
+#### Upgrading
+
+```bash
+composer update sandermuller/package-boost
+vendor/bin/testbench package-boost:sync
+
+```
+The first sync after upgrading may add skills or guidelines
+contributed by your existing dependencies. Review the generated
+`.claude/skills/` / `.github/skills/` / guideline blocks; if a
+vendor contribution isn't wanted, add its `vendor/name` to
+`excluded_vendor_packages` in a published config file.
+
+If you previously relied on your `.ai/skills/<name>` containing
+the only copy of a given skill name, behavior is unchanged —
+host `.ai/` still wins on collisions.
+
+#### Compatibility
+
+No breaking changes. No schema changes to `--format=json`
+output — vendor contributions flow through the existing
+`skills` / `guidelines` arrays indistinguishably from shipped
+and host entries, so CI gates on the JSON drift report continue
+to work.
+
+Config file additions are forward-compatible: consumers on a
+published 0.8.x `package-boost.php` keep working because
+`applyUserConfigOverrides` uses `array_replace` (missing keys
+retain shipped defaults).
+
+#### Internals
+
+- `SyncSources::vendorDirs()` globs
+  `vendor/*/*/resources/boost/<kind>` with `GLOB_ONLYDIR`, sorts
+  by `vendor/name`, and filters via exclude list + realpath
+  guard.
+- Existing skill planning / writing / drift-reporting code
+  paths are untouched — vendor dirs simply appear in the
+  `SyncSources::dirs()` sequence between shipped and host
+  `.ai/`, so all of `planSkills`, `planGuidelines`, and
+  `--check` drift detection work without modification.
+- Five new tests in `tests/SyncCommandTest.php`:
+  discovery, host-wins-on-collision, guideline merge,
+  `--check` drift reporting, `discover_vendor_packages=false`,
+  `excluded_vendor_packages` respect, and the self-mirror
+  realpath guard. Total suite: 53 passing, 184 assertions.
+
 ## 0.8.1 - 2026-04-19
 
 ### Package Boost v0.8.1
@@ -95,6 +227,7 @@ before authoring their own content.
 ```bash
 composer update sandermuller/package-boost
 
+
 ```
 Nothing changes at runtime. Consumers see the README additions and
 the new `CHANGELOG.md` link on the next visit to the repo.
@@ -124,6 +257,7 @@ vendor/bin/testbench boost:update
 #   + .claude/skills/package-development
 #   ...
 
+
 ```
 Several floating skill bundles reference a `boost:update` command
 that never existed — the real command has always been
@@ -149,6 +283,7 @@ between.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 ```
 No action required. If you have scripts or CI invoking
@@ -194,11 +329,13 @@ and compared. Drift is reported as an `updated` action with a
 ~ .claude/skills/package-development (content: SKILL.md differs)
 ~ .claude/skills/package-development (content: SKILL.md differs, rules/a.md added, rules/b.md removed)
 
+
 ```
 **Large diffs collapse to counts:**
 
 ```
 ~ .claude/skills/package-development (content: 4 differ, 1 added, 1 removed)
+
 
 ```
 Hint is prefixed with `content:` to disambiguate from the existing
@@ -207,6 +344,7 @@ output carries the same string in the `hint` field:
 
 ```json
 { "target": ".claude/skills/package-development", "hint": "content: SKILL.md differs" }
+
 
 ```
 ### `tests/tmp/` gitignored
@@ -219,6 +357,7 @@ test run (Ctrl-C, fatal) can't leak artefacts into a subsequent
 
 ```bash
 composer update sandermuller/package-boost
+
 
 ```
 Nothing changes for consumers on filesystems with working
@@ -317,6 +456,7 @@ jq -r '
     if .mcp.action == "new" or .mcp.action == "updated" then .mcp.target else empty end
 ' | sort -u | sed "s|^|  - |"
 
+
 ```
 ## Upgrading
 
@@ -343,6 +483,7 @@ first.
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --format=json
+
 
 ```
 Emits a single JSON document on stdout; exit code still signals
@@ -376,6 +517,7 @@ rather than stderr text.
     }
 }
 
+
 ```
 Field rules:
 
@@ -408,6 +550,7 @@ structurally instead of via warn text:
 "skills": { "skipped": "no-sources" }
 "mcp":    { "action": "skipped", "reason": "laravel-boost-not-installed" }
 
+
 ```
 `drift` treats skipped categories as non-drift.
 
@@ -417,6 +560,7 @@ structurally instead of via warn text:
 vendor/bin/testbench package-boost:sync --format=yaml
 # ERROR  Invalid --format value 'yaml'; expected 'text' or 'json'.
 
+
 ```
 Exits non-zero with guidance.
 
@@ -424,6 +568,7 @@ Exits non-zero with guidance.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 ```
 Text output is unchanged — existing callers of
@@ -442,6 +587,7 @@ additive.
           echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
           exit 1
       fi
+
 
 ```
 ## Internals
@@ -520,6 +666,7 @@ dedicated sub-table:
 | `php artisan boost:install` | `vendor/bin/testbench boost:install` |
 | `php artisan boost:mcp`     | `vendor/bin/testbench boost:mcp`     |
 
+
 ```
 Readers without Boost installed see the heading, understand the rows
 don't apply, and skip. PHPUnit-only packages stop reading Pest-first
@@ -592,11 +739,13 @@ readers know which skill to pick without drilling in.
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
 
+
 ```
 Or, in CI:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check
+
 
 ```
 ## Migration impact
@@ -646,6 +795,7 @@ Guidelines:
   total: 3 unchanged
 MCP:
 
+
 ```
 After (0.4.1):
 
@@ -657,6 +807,7 @@ Guidelines:
 MCP:
   total: 1 unchanged
 
+
 ```
 The three categories now render uniformly. `--show-unchanged` still
 controls whether the per-target `= .mcp.json` line is printed
@@ -666,6 +817,7 @@ alongside the summary.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 ```
 No config or behavior changes beyond the output format.
@@ -689,6 +841,7 @@ handling against malformed input.
 ```bash
 vendor/bin/testbench package-boost:sync --check
 
+
 ```
 Computes planned actions, writes nothing, exits non-zero if any skill,
 guideline, or MCP target diverges from its source. Use in CI to catch
@@ -700,6 +853,7 @@ Combines with the subcommand flags:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --guidelines
+
 
 ```
 ### Per-target delta output
@@ -722,6 +876,7 @@ Guidelines:
 MCP:
   = .mcp.json (unchanged; not listed)
 
+
 ```
 Glyphs:
 
@@ -737,17 +892,20 @@ Skill updates annotate the new symlink target:
 ```
 ~ .claude/skills/package-development (symlink → ../../vendor/sandermuller/package-boost/resources/boost/skills/package-development)
 
+
 ```
 Guideline updates show line-delta:
 
 ```
 ~ CLAUDE.md (+12 lines)
 
+
 ```
 ### `--show-unchanged` flag
 
 ```bash
 vendor/bin/testbench package-boost:sync --show-unchanged
+
 
 ```
 Default output is compact — unchanged targets are folded into
@@ -775,12 +933,14 @@ Four regression tests guard these paths.
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
 
+
 ```
 Add a drift check to CI. Example GitHub Actions step:
 
 ```yaml
 - name: Check package-boost sync
   run: vendor/bin/testbench package-boost:sync --check
+
 
 ```
 ## Internal refactor
