@@ -44,15 +44,14 @@ dedicated sub-table. Landed under
   "edited `.ai/*` but forgot to sync" class of PR mistakes at the
   source.
 
-## 0.7.0 — content-drift detection (the B3 rabbit hole)
+## ~~0.7.0 — content-drift detection~~ — shipped
 
-- **Tree-hash diff for copied skills.** Today, `planSkillAction`
-  returns `'unchanged'` for any non-symlink destination regardless
-  of content. On filesystems without symlink support (rare but
-  real: some Windows + some CI sandboxes), `--check` silently
-  passes when skill content has drifted. Fix: recursive hash of
-  source dir vs dest dir. Scope creep risk — only tackle when a
-  real user reports a miss.
+- ~~**Tree-hash diff for copied skills.**~~ shipped. See
+  `specs/0.7.0/copied-skill-content-drift.md`. `planSkillAction`
+  now hashes source and dest trees (xxh128, dotfiles skipped) when
+  the dest is a directory; `--check` surfaces content drift with a
+  `(content: …)` hint naming the affected files (capped at 3
+  before collapsing to counts).
 
 ## Ongoing / external
 

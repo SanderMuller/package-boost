@@ -342,6 +342,21 @@ it('rejects an unknown --format value', function (): void {
         ->assertExitCode(1);
 });
 
+it('--check detects content drift on a copied (non-symlink) skill dest', function (): void {
+    // User ships a skill; simulate the symlink-fallback copy path by
+    // pre-seeding .claude/skills/keep-me as a plain directory with stale
+    // SKILL.md content.
+    File::ensureDirectoryExists(package_path('.ai/skills/keep-me'));
+    File::put(package_path('.ai/skills/keep-me/SKILL.md'), "---\nname: keep-me\ndescription: Fresh.\n---\n");
+
+    File::ensureDirectoryExists(package_path('.claude/skills/keep-me'));
+    File::put(package_path('.claude/skills/keep-me/SKILL.md'), "---\nname: keep-me\ndescription: Stale.\n---\n");
+
+    $this->artisan('package-boost:sync', ['--check' => true, '--skills' => true])
+        ->expectsOutputToContain('~ .claude/skills/keep-me (content: SKILL.md differs)')
+        ->assertExitCode(1);
+});
+
 it('--check fails when only one category is drifting', function (): void {
     $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
 

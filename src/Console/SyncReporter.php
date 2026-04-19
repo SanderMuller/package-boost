@@ -2,6 +2,8 @@
 
 namespace SanderMuller\PackageBoost\Console;
 
+use Symfony\Component\Finder\Finder;
+
 /**
  * @internal Shared helpers for SyncCommand action planning and output rendering.
  */
@@ -31,7 +33,122 @@ final class SyncReporter
             return ['updated', "symlink → {$expected}"];
         }
 
+        if (is_dir($dest)) {
+            $sourceTree = self::hashTree($source);
+            $destTree = self::hashTree($dest);
+
+            if ($sourceTree === $destTree) {
+                return ['unchanged', ''];
+            }
+
+            return ['updated', self::renderContentHint($sourceTree, $destTree)];
+        }
+
         return ['unchanged', ''];
+    }
+
+    /**
+     * Recursive map of `{relativePath => md5}` for files under $dir. Skips
+     * dotfiles at any level so filesystem/tooling detritus (.DS_Store,
+     * .gitattributes) doesn't register as content drift.
+     *
+     * @return array<string, string>
+     */
+    public static function hashTree(string $dir): array
+    {
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $map = [];
+
+        foreach (Finder::create()->files()->ignoreDotFiles(true)->in($dir) as $file) {
+            $hash = hash_file('xxh128', $file->getPathname());
+            $map[$file->getRelativePathname()] = $hash !== false ? $hash : '';
+        }
+
+        ksort($map);
+
+        return $map;
+    }
+
+    /**
+     * @param  array<string, string>  $source
+     * @param  array<string, string>  $dest
+     */
+    public static function renderContentHint(array $source, array $dest): string
+    {
+        $differ = [];
+        $added = [];
+        $removed = [];
+
+        foreach ($source as $rel => $hash) {
+            if (! isset($dest[$rel])) {
+                $added[] = $rel;
+            } elseif ($dest[$rel] !== $hash) {
+                $differ[] = $rel;
+            }
+        }
+
+        foreach (array_keys($dest) as $rel) {
+            if (! isset($source[$rel])) {
+                $removed[] = $rel;
+            }
+        }
+
+        $total = count($differ) + count($added) + count($removed);
+
+        return 'content: ' . ($total <= 3
+            ? self::renderNamedHint($differ, $added, $removed)
+            : self::renderCountHint($differ, $added, $removed));
+    }
+
+    /**
+     * @param  array<int, string>  $differ
+     * @param  array<int, string>  $added
+     * @param  array<int, string>  $removed
+     */
+    private static function renderNamedHint(array $differ, array $added, array $removed): string
+    {
+        $parts = [];
+
+        foreach ($differ as $file) {
+            $parts[] = "{$file} differs";
+        }
+
+        foreach ($added as $file) {
+            $parts[] = "{$file} added";
+        }
+
+        foreach ($removed as $file) {
+            $parts[] = "{$file} removed";
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * @param  array<int, string>  $differ
+     * @param  array<int, string>  $added
+     * @param  array<int, string>  $removed
+     */
+    private static function renderCountHint(array $differ, array $added, array $removed): string
+    {
+        $parts = [];
+
+        if ($differ !== []) {
+            $parts[] = count($differ) . ' differ';
+        }
+
+        if ($added !== []) {
+            $parts[] = count($added) . ' added';
+        }
+
+        if ($removed !== []) {
+            $parts[] = count($removed) . ' removed';
+        }
+
+        return implode(', ', $parts);
     }
 
     /**
