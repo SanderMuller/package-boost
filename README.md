@@ -1,5 +1,10 @@
 # Package Boost
 
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/sandermuller/package-boost.svg?style=flat-square)](https://packagist.org/packages/sandermuller/package-boost)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/package-boost/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/sandermuller/package-boost/actions?query=workflow%3Arun-tests+branch%3Amain)
+[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/package-boost/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/sandermuller/package-boost/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
+[![Laravel Compatibility](https://badge.laravel.cloud/badge/sandermuller/package-boost?style=flat)](https://packagist.org/packages/sandermuller/package-boost)
+
 AI tooling for Laravel package developers. Bridges the gap between [Laravel Boost](https://laravel.com/docs/boost) (designed for applications) and package development with [Orchestra Testbench](https://packages.tools/testbench).
 
 ## What It Does
