@@ -50,6 +50,18 @@ it('hashTree returns [] for a missing directory', function (): void {
     expect(SyncReporter::hashTree(package_path('tests/tmp/missing')))->toBe([]);
 });
 
+it('hashTree skips dotted subdirectories as well as dotfiles', function (): void {
+    $dir = package_path('tests/tmp/dotted');
+
+    seedTree($dir, [
+        'SKILL.md' => 'alpha',
+        '.git/HEAD' => 'ref: refs/heads/main',
+        '.cache/payload' => 'noise',
+    ]);
+
+    expect(array_keys(SyncReporter::hashTree($dir)))->toBe(['SKILL.md']);
+});
+
 it('planSkillAction reports content drift on copied (non-symlink) dests', function (): void {
     $source = package_path('tests/tmp/source');
     $dest = package_path('tests/tmp/dest');
@@ -83,6 +95,16 @@ it('renderContentHint names files when the diff fits in 3', function (): void {
 
     expect(SyncReporter::renderContentHint($source, $dest))
         ->toBe('content: SKILL.md differs, new.md added, stale.md removed');
+});
+
+it('renderContentHint handles pure-remove (dest has files, source is empty)', function (): void {
+    expect(SyncReporter::renderContentHint([], ['stale.md' => 'x']))
+        ->toBe('content: stale.md removed');
+});
+
+it('renderContentHint handles pure-add (source has files, dest is empty)', function (): void {
+    expect(SyncReporter::renderContentHint(['new.md' => 'x'], []))
+        ->toBe('content: new.md added');
 });
 
 it('renderContentHint collapses to counts above 3 files', function (): void {
