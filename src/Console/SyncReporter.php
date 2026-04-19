@@ -62,12 +62,10 @@ final class SyncReporter
 
         $map = [];
 
-        foreach (Finder::create()->files()->ignoreDotFiles(true)->in($dir) as $file) {
+        foreach (Finder::create()->files()->ignoreDotFiles(true)->sortByName()->in($dir) as $file) {
             $hash = hash_file('xxh128', $file->getPathname());
             $map[$file->getRelativePathname()] = $hash !== false ? $hash : '';
         }
-
-        ksort($map);
 
         return $map;
     }
