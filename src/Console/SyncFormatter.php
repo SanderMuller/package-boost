@@ -2,10 +2,6 @@
 
 namespace SanderMuller\PackageBoost\Console;
 
-/**
- * Renders {@see SyncPlan} instances to text output. JSON rendering lands in
- * 0.6.0 Phase 2 on the same formatter.
- */
 final readonly class SyncFormatter
 {
     public function __construct(
@@ -23,25 +19,25 @@ final readonly class SyncFormatter
 
         $this->writeLine($this->categoryHeader($category));
 
-        foreach ($plan->new as $action) {
-            $this->writeLine('  ' . SyncReporter::glyph('new') . ' ' . $action->target . ($action->hint ?? ''));
-        }
-
-        foreach ($plan->updated as $action) {
-            $this->writeLine('  ' . SyncReporter::glyph('updated') . ' ' . $action->target . ($action->hint ?? ''));
-        }
-
-        foreach ($plan->removed as $action) {
-            $this->writeLine('  ' . SyncReporter::glyph('removed') . ' ' . $action->target);
+        foreach (['new', 'updated', 'removed'] as $kind) {
+            foreach ($plan->{$kind} as $action) {
+                $this->renderAction($kind, $action);
+            }
         }
 
         if ($showUnchanged) {
             foreach ($plan->unchanged as $action) {
-                $this->writeLine('  ' . SyncReporter::glyph('unchanged') . ' ' . $action->target);
+                $this->renderAction('unchanged', $action);
             }
         }
 
         $this->writeLine('  ' . SyncReporter::summaryLine($plan->counts()));
+    }
+
+    private function renderAction(string $kind, SyncAction $action): void
+    {
+        $suffix = $action->hint !== null ? " ({$action->hint})" : '';
+        $this->writeLine('  ' . SyncReporter::glyph($kind) . ' ' . $action->target . $suffix);
     }
 
     /**
@@ -121,7 +117,7 @@ final readonly class SyncFormatter
                 $entry = ['target' => $action->target];
 
                 if ($action->hint !== null) {
-                    $entry['hint'] = trim($action->hint, ' ()');
+                    $entry['hint'] = $action->hint;
                 }
 
                 if ($action->lineDelta !== null) {

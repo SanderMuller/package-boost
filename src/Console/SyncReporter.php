@@ -28,7 +28,7 @@ final class SyncReporter
                 return ['unchanged', ''];
             }
 
-            return ['updated', " (symlink → {$expected})"];
+            return ['updated', "symlink → {$expected}"];
         }
 
         return ['unchanged', ''];
@@ -151,11 +151,11 @@ final class SyncReporter
     private static function formatLineDelta(int $delta): string
     {
         if ($delta === 0) {
-            return ' (content updated)';
+            return 'content updated';
         }
 
         $sign = $delta > 0 ? '+' : '';
 
-        return " ({$sign}{$delta} lines)";
+        return "{$sign}{$delta} lines";
     }
 }

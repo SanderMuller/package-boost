@@ -52,7 +52,7 @@ class SyncCommand extends Command
             $this->output->writeln(rtrim(SyncFormatter::renderJson($plans, $check, $showUnchanged)));
         }
 
-        $drift = $this->anyDrift($plans);
+        $drift = collect($plans)->contains(static fn (SyncPlan $plan): bool => $plan->hasDrift());
 
         if ($format === 'text' && $check && $drift) {
             $this->components->error('Generated files are out of sync. Run `package-boost:sync` without --check.');
@@ -137,20 +137,6 @@ class SyncCommand extends Command
         return $plan;
     }
 
-    /**
-     * @param  array<string, SyncPlan>  $plans
-     */
-    private function anyDrift(array $plans): bool
-    {
-        foreach ($plans as $plan) {
-            if ($plan->hasDrift()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private function makeFormatter(): SyncFormatter
     {
         return new SyncFormatter(
@@ -197,9 +183,8 @@ class SyncCommand extends Command
                 };
             }
 
-            $expectedNames = array_keys($skills);
             foreach ($this->existingSkillNames($targetDir) as $existing) {
-                if (in_array($existing, $expectedNames, true)) {
+                if (isset($skills[$existing])) {
                     continue;
                 }
 

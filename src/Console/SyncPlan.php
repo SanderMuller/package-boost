@@ -3,14 +3,9 @@
 namespace SanderMuller\PackageBoost\Console;
 
 /**
- * Immutable description of what a single category ({@see SyncCommand::runSkills}
- * / guidelines / mcp) would do on the next sync. Produced by the `plan*`
- * methods on {@see SyncCommand}, consumed by {@see SyncFormatter} for output
- * and by the `apply*` methods for writes.
- *
- * A plan is either drifted (the four action buckets describe changes) or
- * skipped (no sources or a precondition failed, e.g. Laravel Boost absent
- * for the MCP category).
+ * Immutable description of what a single sync category (skills, guidelines,
+ * mcp) would do on the next run. Either populated with four action buckets,
+ * or skipped with a reason code (no sources, Laravel Boost absent, etc.).
  */
 final readonly class SyncPlan
 {
