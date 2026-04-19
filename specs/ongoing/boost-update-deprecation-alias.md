@@ -111,4 +111,47 @@ only to users who type it directly.
 
 ## Findings
 
-<!-- Notes added during implementation. Do not remove this section. -->
+### Pure-delegation sketch failed on option forwarding
+
+Spec proposed a thin `Command` subclass that prints a deprecation
+warning then delegates via `$this->call('package-boost:sync',
+array_merge($this->input->getArguments(), $this->input->getOptions()))`
+— reasoning: no signature duplication, options forwarded verbatim.
+
+Reality: Symfony rejects unknown options **before** `handle()` runs.
+Invoking `boost:update --skills` with a signature that doesn't
+declare `--skills` produces `InvalidOptionException: The "--skills"
+option does not exist.` from `Symfony\Component\Console\Input\
+ArrayInput::addLongOption` at input-parse time. `handle()` never
+gets the chance to warn + delegate.
+
+### Pivoted to subclassing with constructor rename
+
+`UpdateCommand extends SyncCommand`; `__construct()` calls
+`parent::__construct()` (which parses the `SyncCommand::$signature`
+into the command's definition), then `setName('boost:update')` +
+`setDescription(...)` + `setHidden(true)` override only the
+metadata. `handle()` emits the warn, then `parent::handle()` runs
+the real sync. Zero signature duplication, full option set
+inherited automatically — adding an option to `SyncCommand` requires
+no `UpdateCommand` change.
+
+### Testing
+
+Pest's `$this->artisan(...)->expectsOutputToContain(...)` did not
+reliably match strings spanning the wrap boundary produced by
+`$this->components->warn(...)`. Fell back to `Artisan::call(...)` +
+`Artisan::output()` for the output-assertion test; kept the Pest
+form for the file-side-effect assertion. Both collapsed into one
+test during simplify review (single sync cycle asserts both
+outcomes).
+
+### Phpstan `@deprecated` tag
+
+Initial class docstring used `/** @deprecated ... */` per PHPDoc
+convention. Phpstan's `classConstant.deprecatedClass` rule then
+flagged `$this->commands([..., UpdateCommand::class])` in the
+provider as "access to constant on deprecated class" — the
+registration itself became a lint error. Swapped to prose-only
+`/** Deprecated alias ... */` wording. `@deprecated` annotation
+remains out.
