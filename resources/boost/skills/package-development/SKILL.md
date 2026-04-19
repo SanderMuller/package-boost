@@ -73,6 +73,8 @@ vendor/bin/testbench package-boost:sync --check
 
 Exits non-zero when generated files drift from sources. Use in CI to catch commits where `.ai/*` was edited but generated files weren't re-synced.
 
+Register the sync as a `post-autoload-dump` composer hook so `composer install` / `update` / `dump-autoload` catch "forgot to sync" mistakes on the contributor's machine — see the _Composer auto-sync hook_ section in the package README for the recommended strict / auto-fix / Boost-less snippets.
+
 ## Authoring guidelines
 
 Quick reference for adding content under `.ai/`.

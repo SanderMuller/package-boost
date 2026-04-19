@@ -142,4 +142,36 @@ during implementation by manually running a consumer's
 
 ## Findings
 
-<!-- Notes added during implementation. Do not remove this section. -->
+### Shipped three variants, strict leading
+
+Docs landed with all three variants the spec proposed: strict
+(recommended first), auto-fix (friendlier but leaves uncommitted
+changes on dirty branches), Boost-less (`--skills --guidelines`
+narrowing to suppress the "Laravel Boost is not installed" warn on
+every composer run). This turned out to matter: the js-store peer
+flagged the warn as minor noise when verifying 0.8.0 — the Boost-less
+hook snippet in this spec silences it at the source.
+
+### Cross-platform note kept minimal
+
+Spec proposed verifying the hook works on posix + Windows. Opted for
+a one-line doc note ("hook runs via /bin/sh on posix and cmd.exe on
+Windows; single-command-per-array-entry form works on both") rather
+than adding CI cells to validate it. Composer's own
+`@php` substitution semantics are well-defined; a matrix expansion
+would be verifying composer, not package-boost.
+
+### Skipped the manual smoke test
+
+Spec asked for "add the strict variant to laravel-fluent-validation
+via the peer and confirm composer dump-autoload exits 0/1 as
+expected". Not executable from this repo without shipping the hook
+downstream first. Deferred to whenever a downstream peer adopts the
+snippet — they'll report back if the exit-code gate misbehaves.
+
+### No code changes
+
+As scoped, this was pure documentation (README + skill cross-link +
+ROADMAP prune). `package-boost:sync --check` already implements the
+semantics the hook leverages; no new command options or behavior
+introduced.

@@ -38,11 +38,11 @@ dedicated sub-table. Landed under
 - ~~**`--format=json`**~~ — shipped. See
   `specs/0.6.0/sync-format-json.md`.
 
-- **Composer `post-autoload-dump` auto-sync**. Ship an opt-in
-  README snippet + a guarded `package-boost:sync` invocation safe to
-  run on `composer install` / `composer update`. Avoids the
-  "edited `.ai/*` but forgot to sync" class of PR mistakes at the
-  source.
+- ~~**Composer `post-autoload-dump` auto-sync**~~ — shipped. See
+  `specs/0.6.0/composer-auto-sync-hook.md`. README documents strict
+  (recommended), auto-fix, and Boost-less variants with a
+  cross-platform portability note; `package-development` SKILL
+  cross-links from its Syncing section.
 
 ## ~~0.7.0 — content-drift detection~~ — shipped
 

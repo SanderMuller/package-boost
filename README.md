@@ -135,6 +135,61 @@ By default, the sync output lists only targets that changed and folds unchanged 
 }
 ```
 
+### Composer auto-sync hook
+
+Register `package-boost:sync` as a `post-autoload-dump` hook so
+`composer install` / `update` / `dump-autoload` catch "forgot to
+sync" mistakes automatically. Complements the `--check` CI gate: CI
+catches stale generated files on the server, the hook catches them
+on the contributor's machine.
+
+**Strict variant (recommended)** — matches the CI contract. If
+anything has drifted, the install fails and the contributor re-runs
+`package-boost:sync` by hand:
+
+```json
+{
+    "scripts": {
+        "post-autoload-dump": [
+            "@php vendor/bin/testbench package-boost:sync --check"
+        ]
+    }
+}
+```
+
+**Auto-fix variant** — friendlier but mutates the working tree when
+drift exists, which leaves uncommitted changes behind after a fresh
+`composer install` on a dirty branch:
+
+```json
+{
+    "scripts": {
+        "post-autoload-dump": [
+            "@php vendor/bin/testbench package-boost:sync"
+        ]
+    }
+}
+```
+
+**Boost-less packages** — if the host doesn't depend on
+`laravel/boost`, narrow the hook to skip MCP (otherwise it emits a
+"Laravel Boost is not installed" warn on every composer run):
+
+```json
+{
+    "scripts": {
+        "post-autoload-dump": [
+            "@php vendor/bin/testbench package-boost:sync --check --skills --guidelines"
+        ]
+    }
+}
+```
+
+The hook runs via `/bin/sh` on posix and `cmd.exe` on Windows;
+single-command-per-array-entry form works on both. Chained shell
+operators (`&&`, `||`) are not portable across composer's shell
+layers — use separate array entries if you need multiple steps.
+
 ## With Laravel Boost
 
 When `laravel/boost` is also installed as a dev dependency, you get:
@@ -164,6 +219,11 @@ The `excluded_boost_guidelines` array is merged into `boost.guidelines.exclude` 
 | **Discovers skills**     | From app + vendor packages       | From `.ai/` directory             |
 | **Generates guidelines** | Composes from installed packages | Copies your markdown files        |
 | **MCP server**           | Built-in                         | Delegates to Boost when installed |
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a per-release history. Entries
+are auto-generated from GitHub Releases.
 
 ## License
 
