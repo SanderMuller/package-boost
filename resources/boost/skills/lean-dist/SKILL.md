@@ -39,9 +39,9 @@ forces fresh Packagist metadata.
 
 After install, `package-boost:sync` discovers lpv's
 `resources/boost/skills/` directory automatically (vendor-skill
-discovery, 0.9.0+). The three lpv skills surface in
-`.claude/skills/` and `.github/skills/` on the next sync — hand off
-all command-level work to them.
+discovery, 0.9.0+). The three lpv skills surface in every selected
+agent's skill dir on the next sync — hand off all command-level
+work to them.
 
 ## Step 2 — Audit, then create or update
 

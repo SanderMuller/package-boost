@@ -31,10 +31,13 @@ function wipeArtifacts(): void
 
     File::delete(package_path('.ai/guidelines/test.md'));
 
-    File::deleteDirectory(package_path('.claude/skills'));
-    File::deleteDirectory(package_path('.github/skills'));
+    foreach (['.claude/skills', '.cursor/skills', '.agents/skills', '.github/skills', '.junie/skills', '.kiro/skills'] as $dir) {
+        File::deleteDirectory(package_path($dir));
+    }
+
     File::delete(package_path('CLAUDE.md'));
     File::delete(package_path('AGENTS.md'));
+    File::delete(package_path('GEMINI.md'));
     File::delete(package_path('.github/copilot-instructions.md'));
     File::delete(package_path('.mcp.json'));
 
@@ -110,7 +113,8 @@ it('syncs shipped foundation and user guidelines into agent files', function ():
         && $foundationPos < $dividerPos && $dividerPos < $userPos)->toBeTrue();
 
     expect(File::exists(package_path('AGENTS.md')))->toBeTrue();
-    expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue();
+    expect(File::exists(package_path('GEMINI.md')))->toBeTrue();
+    expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeFalse();
 });
 
 it('ships foundation guideline even without a user .ai/guidelines directory', function (): void {
@@ -486,6 +490,353 @@ it('honours excluded_vendor_packages', function (): void {
 
     expect(File::exists(package_path('.claude/skills/alpha-skill')))->toBeFalse()
         ->and(File::exists(package_path('.claude/skills/beta-skill/SKILL.md')))->toBeTrue();
+});
+
+it('writes skills to all 6 unique agent dirs by default', function (): void {
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    foreach (['.claude/skills', '.cursor/skills', '.agents/skills', '.github/skills', '.junie/skills', '.kiro/skills'] as $dir) {
+        expect(File::exists(package_path($dir . '/package-development/SKILL.md')))
+            ->toBeTrue("expected package-development skill at {$dir}");
+    }
+});
+
+it('writes guidelines to CLAUDE.md, AGENTS.md, and GEMINI.md by default', function (): void {
+    $this->artisan('package-boost:sync', ['--guidelines' => true])
+        ->expectsOutputToContain('+ CLAUDE.md')
+        ->expectsOutputToContain('+ AGENTS.md')
+        ->expectsOutputToContain('+ GEMINI.md')
+        ->assertSuccessful();
+
+    expect(File::exists(package_path('CLAUDE.md')))->toBeTrue()
+        ->and(File::exists(package_path('AGENTS.md')))->toBeTrue()
+        ->and(File::exists(package_path('GEMINI.md')))->toBeTrue()
+        ->and(File::exists(package_path('.github/copilot-instructions.md')))->toBeFalse();
+});
+
+it('does not write a separate file for shared .agents/skills entries', function (): void {
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    // Shared by Codex / Gemini / OpenCode / Amp — must materialise once at
+    // .agents/skills, not as four duplicated dirs.
+    expect(is_dir(package_path('.agents/skills/package-development')))->toBeTrue();
+    foreach (['.codex/skills', '.gemini/skills', '.opencode/skills', '.amp/skills'] as $stale) {
+        expect(File::exists(package_path($stale)))->toBeFalse("did not expect duplicate dir {$stale}");
+    }
+});
+
+it('warns about a leftover .github/copilot-instructions.md with our tag block', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "<package-boost-guidelines>\nstale\n</package-boost-guidelines>\n",
+    );
+
+    $this->artisan('package-boost:sync', ['--guidelines' => true])
+        ->expectsOutputToContain('Legacy .github/copilot-instructions.md detected')
+        ->assertSuccessful();
+});
+
+it('does not write or warn about .github/copilot-instructions.md when absent', function (): void {
+    expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeFalse();
+
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeFalse();
+});
+
+it('does not warn when .github/copilot-instructions.md exists without our tag', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "# User-authored Copilot config\n\nNothing of ours here.\n",
+    );
+
+    $this->artisan('package-boost:sync', ['--guidelines' => true])
+        ->doesntExpectOutputToContain('Legacy .github/copilot-instructions.md detected')
+        ->assertSuccessful();
+});
+
+/**
+ * Build a `.github/copilot-instructions.md` file matching what an
+ * earlier package-boost version would have synced for the current
+ * `.ai/` sources, so prune-prerequisite tests don't depend on
+ * SyncWriter internals.
+ */
+function seedFreshLegacyCopilotFile(): void
+{
+    Artisan::call('package-boost:sync', ['--guidelines' => true]);
+
+    if (preg_match(
+        '/<package-boost-guidelines>.*?<\/package-boost-guidelines>/s',
+        File::get(package_path('CLAUDE.md')),
+        $match,
+    ) !== 1) {
+        throw new RuntimeException('Could not extract guidelines block from freshly synced CLAUDE.md');
+    }
+
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(package_path('.github/copilot-instructions.md'), $match[0] . "\n");
+}
+
+it('--prune removes a fresh-from-sync legacy .github/copilot-instructions.md', function (): void {
+    seedFreshLegacyCopilotFile();
+
+    $exit = Artisan::call('package-boost:sync', ['--prune' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Removed legacy .github/copilot-instructions.md')
+        ->and(File::exists(package_path('.github/copilot-instructions.md')))->toBeFalse();
+});
+
+it('--prune refuses to delete when user content is outside the tag block', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "# User notes\nKeep this around.\n\n<package-boost-guidelines>\nours\n</package-boost-guidelines>\n",
+    );
+
+    $exit = Artisan::call('package-boost:sync', ['--prune' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Refusing to prune')
+        ->and(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue()
+        ->and(File::get(package_path('.github/copilot-instructions.md')))->toContain('Keep this around.');
+});
+
+it('--prune refuses when the user has edited content INSIDE the tag block', function (): void {
+    seedFreshLegacyCopilotFile();
+
+    // User customised our generated block in place. Even though nothing
+    // lives outside the block, we must not silently delete their edits.
+    $tampered = preg_replace(
+        '/<package-boost-guidelines>.*?<\/package-boost-guidelines>/s',
+        "<package-boost-guidelines>\n# My hand-tuned override that must survive prune\n</package-boost-guidelines>",
+        File::get(package_path('.github/copilot-instructions.md')),
+    );
+    File::put(package_path('.github/copilot-instructions.md'), (string) $tampered);
+
+    $exit = Artisan::call('package-boost:sync', ['--prune' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Refusing to prune')
+        ->and(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue()
+        ->and(File::get(package_path('.github/copilot-instructions.md')))->toContain('hand-tuned override');
+});
+
+it('--prune refuses when the legacy block is stale relative to current .ai/ sources', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    // Tag-only file but the body doesn't match what current sources would
+    // produce. Could be a much older sync. Refuse to assume it's safe.
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "<package-boost-guidelines>\noutdated content\n</package-boost-guidelines>\n",
+    );
+
+    $exit = Artisan::call('package-boost:sync', ['--prune' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Refusing to prune')
+        ->and(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue();
+});
+
+it('--prune is a no-op when the legacy file is absent', function (): void {
+    expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeFalse();
+
+    $exit = Artisan::call('package-boost:sync', ['--prune' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->not->toContain('Removed legacy')
+        ->and($output)->not->toContain('Refusing to prune');
+});
+
+it('--prune leaves a hand-authored .github/copilot-instructions.md alone', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "# Pure user content\nNothing of ours.\n",
+    );
+
+    $exit = Artisan::call('package-boost:sync', ['--prune' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->not->toContain('Removed legacy')
+        ->and($output)->not->toContain('Refusing to prune')
+        ->and(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue();
+});
+
+it('--prune is ignored under --check (read-only mode)', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "<package-boost-guidelines>\nstale\n</package-boost-guidelines>\n",
+    );
+
+    Artisan::call('package-boost:sync', ['--check' => true, '--prune' => true, '--guidelines' => true]);
+
+    expect(File::exists(package_path('.github/copilot-instructions.md')))->toBeTrue();
+});
+
+it('warns about stale Copilot file under --check too', function (): void {
+    File::ensureDirectoryExists(package_path('.github'));
+    File::put(
+        package_path('.github/copilot-instructions.md'),
+        "<package-boost-guidelines>\nstale\n</package-boost-guidelines>\n",
+    );
+
+    // Sync first so guidelines are clean and --check exits zero — keeps the
+    // assertion focused on the migration warning, not other drift.
+    $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+    $this->artisan('package-boost:sync', ['--check' => true, '--guidelines' => true])
+        ->expectsOutputToContain('Legacy .github/copilot-instructions.md detected')
+        ->assertExitCode(0);
+});
+
+it('writes only Claude paths when agents = [claude_code]', function (): void {
+    config()->set('package-boost.agents', ['claude_code']);
+
+    $this->artisan('package-boost:sync', ['--skills' => true, '--guidelines' => true])->assertSuccessful();
+
+    expect(File::exists(package_path('.claude/skills/package-development/SKILL.md')))->toBeTrue()
+        ->and(File::exists(package_path('CLAUDE.md')))->toBeTrue()
+        ->and(File::exists(package_path('AGENTS.md')))->toBeFalse()
+        ->and(File::exists(package_path('GEMINI.md')))->toBeFalse()
+        ->and(File::exists(package_path('.cursor/skills/package-development')))->toBeFalse()
+        ->and(File::exists(package_path('.agents/skills/package-development')))->toBeFalse()
+        ->and(File::exists(package_path('.junie/skills/package-development')))->toBeFalse()
+        ->and(File::exists(package_path('.kiro/skills/package-development')))->toBeFalse()
+        ->and(File::exists(package_path('.github/skills/package-development')))->toBeFalse();
+});
+
+it('writes all 9-agent paths when agents = null', function (): void {
+    config()->set('package-boost.agents');
+
+    $this->artisan('package-boost:sync', ['--skills' => true, '--guidelines' => true])->assertSuccessful();
+
+    foreach (['.claude/skills', '.cursor/skills', '.agents/skills', '.github/skills', '.junie/skills', '.kiro/skills'] as $dir) {
+        expect(File::exists(package_path($dir . '/package-development/SKILL.md')))->toBeTrue();
+    }
+
+    foreach (['CLAUDE.md', 'AGENTS.md', 'GEMINI.md'] as $file) {
+        expect(File::exists(package_path($file)))->toBeTrue();
+    }
+});
+
+it('skips MCP when claude_code is not in the selection', function (): void {
+    config()->set('package-boost.agents', ['cursor']);
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('Claude Code is not in the selected agents')
+        ->assertSuccessful();
+
+    expect(File::exists(package_path('.mcp.json')))->toBeFalse();
+});
+
+it('does not report MCP drift in --check when claude_code is unselected', function (): void {
+    config()->set('package-boost.agents', ['cursor']);
+
+    // Even with no .mcp.json present, --check should not flag drift on the
+    // MCP category alone. Skills/guidelines may drift, so target MCP only.
+    $this->artisan('package-boost:sync', ['--check' => true, '--mcp' => true])
+        ->expectsOutputToContain('Claude Code is not in the selected agents')
+        ->assertExitCode(0);
+});
+
+it('keeps writing MCP when agents = null (default)', function (): void {
+    config()->set('package-boost.agents');
+
+    $this->artisan('package-boost:sync', ['--mcp' => true])
+        ->expectsOutputToContain('+ .mcp.json')
+        ->assertSuccessful();
+
+    expect(File::exists(package_path('.mcp.json')))->toBeTrue();
+});
+
+// PendingCommand line-matching can miss `components->warn` output when it
+// wraps; fall back to capturing raw Artisan output, same workaround as
+// tests/UpdateCommandTest.php.
+it('warns about stale skill dirs from previously-selected agents', function (): void {
+    // Initial sync: all 9 agents (default null selection) populate every dir.
+    Artisan::call('package-boost:sync', ['--skills' => true]);
+
+    expect(File::exists(package_path('.cursor/skills/package-development')))->toBeTrue();
+
+    // Narrow selection — sync should warn about the leftover .cursor/skills.
+    config()->set('package-boost.agents', ['claude_code']);
+
+    $exit = Artisan::call('package-boost:sync', ['--skills' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Generated artifacts exist for agents NOT in')
+        ->and($output)->toContain('.cursor/skills');
+});
+
+it('warns about a stale GEMINI.md when Gemini is deselected', function (): void {
+    Artisan::call('package-boost:sync', ['--guidelines' => true]);
+    expect(File::exists(package_path('GEMINI.md')))->toBeTrue();
+
+    config()->set('package-boost.agents', ['claude_code']);
+
+    $exit = Artisan::call('package-boost:sync', ['--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('GEMINI.md')
+        ->and($output)->toContain('package-boost-guidelines');
+});
+
+it('warns about a stale .mcp.json when claude_code is deselected', function (): void {
+    Artisan::call('package-boost:sync', ['--mcp' => true]);
+    expect(File::exists(package_path('.mcp.json')))->toBeTrue();
+
+    config()->set('package-boost.agents', ['cursor']);
+
+    $exit = Artisan::call('package-boost:sync', ['--mcp' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('.mcp.json')
+        ->and($output)->toContain('laravel-boost mcpServers');
+});
+
+it('does not warn about deselected artifacts when nothing is left over', function (): void {
+    config()->set('package-boost.agents', ['claude_code']);
+
+    $exit = Artisan::call('package-boost:sync', ['--skills' => true, '--guidelines' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->not->toContain('Generated artifacts exist for agents NOT in');
+});
+
+it('warns about unknown agent names in config', function (): void {
+    config()->set('package-boost.agents', ['claude_code', 'bogus_agent']);
+
+    $exit = Artisan::call('package-boost:sync', ['--skills' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->toContain('Unknown agent name')
+        ->and($output)->toContain('bogus_agent')
+        ->and(File::exists(package_path('.claude/skills/package-development/SKILL.md')))->toBeTrue();
+});
+
+it('produces no unknown-agent warning when config is null', function (): void {
+    config()->set('package-boost.agents');
+
+    $exit = Artisan::call('package-boost:sync', ['--skills' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and($output)->not->toContain('Unknown agent name');
 });
 
 it('--check fails when only one category is drifting', function (): void {

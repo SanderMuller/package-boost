@@ -9,11 +9,29 @@ AI tooling for Laravel package developers. Bridges the gap between [Laravel Boos
 
 ## What It Does
 
-- Syncs `.ai/skills/` to `.claude/skills/` and `.github/skills/` so Claude Code, GitHub Copilot, and Codex can use them
-- Syncs `.ai/guidelines/` into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`
+- Syncs `.ai/skills/` to per-agent skill dirs (`.claude/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`, `.junie/skills/`, `.kiro/skills/`) so 9 agents — Claude Code, Cursor, GitHub Copilot, Codex, Gemini, Junie, Kiro, OpenCode, Amp — can use them
+- Syncs `.ai/guidelines/` into `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`
 - Generates `.mcp.json` pointing to `vendor/bin/testbench boost:mcp` when Boost is installed
 - Ships a `package-development` skill that teaches AI agents how to work with Testbench
 - Ships a `lean-dist` skill that on-ramps consumers to [`stolt/lean-package-validator`](https://github.com/raphaelstolt/lean-package-validator) for `.gitattributes` hygiene, with AI-era `export-ignore` entries (`.ai`, `.claude`, `AGENTS.md`, `CLAUDE.md`, …) lpv's defaults don't cover
+
+### Agent coverage
+
+`package-boost:sync` writes to the same paths each agent reads from, mirroring [Laravel Boost's](https://github.com/laravel/boost) `src/Install/Agents/` matrix:
+
+| Agent          | Guidelines file | Skills dir       |
+|----------------|-----------------|------------------|
+| Claude Code    | `CLAUDE.md`     | `.claude/skills` |
+| Cursor         | `AGENTS.md`     | `.cursor/skills` |
+| GitHub Copilot | `AGENTS.md`     | `.github/skills` |
+| Codex CLI      | `AGENTS.md`     | `.agents/skills` |
+| Gemini CLI     | `GEMINI.md`     | `.agents/skills` |
+| Junie          | `AGENTS.md`     | `.junie/skills`  |
+| Kiro           | `AGENTS.md`     | `.kiro/skills`   |
+| OpenCode       | `AGENTS.md`     | `.agents/skills` |
+| Amp            | `AGENTS.md`     | `.agents/skills` |
+
+`.agents/skills` is shared across Codex, Gemini, OpenCode, and Amp — sync writes there once and dedupes. Trim the list to the agents you actually use via `package-boost:install` (or set `agents` in `config/package-boost.php` directly).
 
 ## Installation
 
@@ -30,7 +48,22 @@ providers:
 
 ## Usage
 
-### 1. Create your skills and guidelines
+### 1. (Optional) Pick which agents to sync
+
+```bash
+vendor/bin/testbench package-boost:install
+```
+
+Interactive picker — defaults to "all 9" and pre-checks any agent
+already detected in your project (existing `.cursor/`, `.kiro/`, etc.)
+or imported from `laravel/boost`'s own `boost.json` if present. The
+choice is persisted to `workbench/config/package-boost.php`.
+
+Skip this step entirely to keep the zero-config default (all 9
+agents). Override non-interactively with `--all`,
+`--agents=claude_code,cursor`, or `--no-import`.
+
+### 2. Create your skills and guidelines
 
 ```
 .ai/
@@ -41,15 +74,15 @@ providers:
         └── SKILL.md
 ```
 
-### 2. Sync to agent directories
+### 3. Sync to agent directories
 
 ```bash
 vendor/bin/testbench package-boost:sync
 ```
 
-### 3. Commit the generated files
+### 4. Commit the generated files
 
-The sync copies your `.ai/` files to the directories each AI tool expects. Commit both the source (`.ai/`) and the generated files (`.claude/`, `.github/`, `CLAUDE.md`, `AGENTS.md`).
+The sync copies your `.ai/` files to the directories each AI tool expects. Commit both the source (`.ai/`) and the generated files (`.claude/`, `.cursor/`, `.agents/`, `.github/`, `.junie/`, `.kiro/`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`).
 
 ### Selective sync
 
@@ -96,6 +129,7 @@ Emits a structured JSON document on stdout — parseable by `jq` or programmatic
 - `skipped` categories report structurally:
   - `skills` / `guidelines` when no sources are found: `{ "skipped": "no-sources" }`.
   - `mcp` when Laravel Boost isn't installed: `{ "action": "skipped", "reason": "laravel-boost-not-installed" }`.
+  - `mcp` when `claude_code` is filtered out of the agent selection: `{ "action": "skipped", "reason": "claude-not-selected" }`.
 - Arrays are stable-sorted by `target` for deterministic diffs across runs.
 
 Example GitHub Actions step that fails the job and lists drifted targets:
@@ -125,6 +159,30 @@ vendor/bin/testbench package-boost:sync --show-unchanged
 ```
 
 By default, the sync output lists only targets that changed and folds unchanged ones into the `total: ...` summary. Pass `--show-unchanged` to print a line per unchanged target as well.
+
+### Migrating from older versions
+
+Prior to the multi-agent rollout, package-boost wrote
+`.github/copilot-instructions.md`. Upstream Boost migrated Copilot
+guidelines to `AGENTS.md`, so package-boost no longer writes that
+file. Sync warns whenever the legacy file is detected with our tag
+block. To remove it automatically — only when the file contains
+nothing but a fresh-from-sync block:
+
+```bash
+vendor/bin/testbench package-boost:sync --prune
+```
+
+`--prune` refuses if the file has user content outside the block,
+or if the block has been edited / is stale relative to current
+`.ai/` sources. Run a normal `package-boost:sync` first to refresh,
+then `--prune` to clean up.
+
+If you narrow `package-boost.agents` after a previous "all" sync,
+sync also warns about leftover skill dirs / guideline files / mcp
+entries from agents that fell out of the selection. These are not
+auto-removed (guideline files may carry user content); delete them
+manually or re-include the agent.
 
 ### Composer script
 
@@ -197,7 +255,7 @@ When `laravel/boost` is also installed as a dev dependency, you get:
 
 - **MCP server** — `package-boost:sync --mcp` generates the correct `.mcp.json` config
 - **Doc search** — Boost's `search-docs` tool works out of the box via Testbench
-- **Shipped `package-development` skill** — ships via `resources/boost/skills/` and is bundled into `.claude/skills/` and `.github/skills/` by `package-boost:sync`, so downstream agents always get it regardless of Boost version.
+- **Shipped `package-development` skill** — ships via `resources/boost/skills/` and is bundled into every selected agent's skill dir by `package-boost:sync`, so downstream agents always get it regardless of Boost version.
 - **Package-tuned foundation** — ships `resources/boost/guidelines/foundation.md` with package-dev framing (Testbench harness, semver, public API discipline). `package-boost:sync` bundles it into the `<package-boost-guidelines>` block ahead of any user-authored `.ai/guidelines/` content, separated by a horizontal rule.
 - **App-only guidelines stripped** — defaults exclude `foundation` (Boost's app-tuned version), Inertia, Livewire, Filament, Volt, Folio, Pennant, Wayfinder, Nightwatch, Pulse, Herd, Sail, Tailwind, Vite, deployments, and `laravel/style|api|localization`
 

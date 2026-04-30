@@ -4,6 +4,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Selected Agents
+    |--------------------------------------------------------------------------
+    |
+    | Which AI agents to sync skills and guidelines for. `null` syncs all
+    | supported agents (zero-config dogfooding). Provide an array of agent
+    | names to limit the targets — see `package-boost:install` for an
+    | interactive picker that writes this key.
+    |
+    | Supported names: claude_code, cursor, copilot, codex, gemini, junie,
+    | kiro, opencode, amp.
+    |
+    | When `claude_code` is excluded, MCP sync (`.mcp.json`) is skipped —
+    | per-agent MCP serializers are not yet implemented.
+    |
+    */
+
+    'agents' => null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Vendor Package Discovery
     |--------------------------------------------------------------------------
     |

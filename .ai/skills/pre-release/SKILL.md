@@ -82,7 +82,7 @@ If unsure whether a change warrants a README update: would a user reading the RE
 
 #### 5b. `.ai/` skills + guidelines
 
-The `.ai/skills/` and `.ai/guidelines/` directories are synced by `package-boost` (`vendor/bin/testbench package-boost:sync`) to `CLAUDE.md`, `AGENTS.md`, `.claude/skills/`, and `.github/skills/`. Those generated files are regenerated locally — they're gitignored in this repo because the sync-command tests exercise the same filesystem paths.
+The `.ai/skills/` and `.ai/guidelines/` directories are synced by `package-boost` (`vendor/bin/testbench package-boost:sync`) to the per-agent skill dirs and guideline files listed in the README's *Agent coverage* table (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.claude/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`, `.junie/skills/`, `.kiro/skills/`). Those generated files are regenerated locally — they're gitignored in this repo because the sync-command tests exercise the same filesystem paths.
 
 Check each edited-or-eligible doc:
 

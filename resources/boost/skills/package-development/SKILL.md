@@ -63,7 +63,7 @@ After editing files in `.ai/`, sync to agent directories:
 vendor/bin/testbench package-boost:sync
 ```
 
-This copies skills to `.claude/skills/` and `.github/skills/`, and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`. Commit the generated files alongside the `.ai/` sources — they ship with the package.
+This copies skills to every selected agent's skill dir (`.claude/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`, `.junie/skills/`, `.kiro/skills/`) and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`. Use `package-boost:install` to narrow the agent set if you don't need all 9. Commit the generated files alongside the `.ai/` sources — they ship with the package.
 
 Verify CI and local state are in sync:
 
@@ -86,7 +86,7 @@ Quick reference for adding content under `.ai/`.
 - One topic per file; filename controls ordering
   (`sortByName` across the sources dir).
 - Files are concatenated into the `<package-boost-guidelines>` block
-  in `CLAUDE.md` / `AGENTS.md` / `.github/copilot-instructions.md`.
+  in `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`.
 
 ### Skill file shape
 

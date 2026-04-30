@@ -162,6 +162,7 @@ final readonly class SyncFormatter
             $category === 'skills' && $reason === 'no-sources' => 'No skills found in .ai/skills/ or shipped package-boost skills.',
             $category === 'guidelines' && $reason === 'no-sources' => 'No guideline files found in .ai/guidelines/ or shipped package-boost guidelines.',
             $category === 'mcp' && $reason === 'laravel-boost-not-installed' => 'Laravel Boost is not installed — skipping MCP config.',
+            $category === 'mcp' && $reason === 'claude-not-selected' => 'Claude Code is not in the selected agents — skipping MCP config (per-agent MCP serializers not yet implemented).',
             default => ucfirst($category) . " skipped: {$reason}",
         };
     }

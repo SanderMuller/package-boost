@@ -19,6 +19,11 @@ RELEASE_NOTES*.md
 # committed copies on every `vendor/bin/pest` run.
 /CLAUDE.md
 /AGENTS.md
+/GEMINI.md
 /.github/copilot-instructions.md
 /.claude/skills
+/.cursor/skills
+/.agents/skills
 /.github/skills
+/.junie/skills
+/.kiro/skills

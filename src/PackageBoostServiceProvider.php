@@ -5,6 +5,7 @@ namespace SanderMuller\PackageBoost;
 use Illuminate\Config\Repository;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Boost\BoostServiceProvider;
+use SanderMuller\PackageBoost\Console\InstallCommand;
 use SanderMuller\PackageBoost\Console\SyncCommand;
 use SanderMuller\PackageBoost\Console\UpdateCommand;
 
@@ -19,6 +20,7 @@ class PackageBoostServiceProvider extends ServiceProvider
         $this->applyUserConfigOverrides();
 
         $this->commands([
+            InstallCommand::class,
             SyncCommand::class,
             UpdateCommand::class,
         ]);

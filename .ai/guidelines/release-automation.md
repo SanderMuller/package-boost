@@ -39,10 +39,13 @@ No manual `CHANGELOG.md` edits during the release PR.
 ## Package-boost dogfoods itself
 
 This repo's `.ai/` directory ships the sources; the generated
-outputs (`CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`,
-`.claude/skills/`, `.github/skills/`) are **not committed** because
-the sync-command tests exercise the same filesystem paths and
-would clobber any committed copies on every `pest` run.
+outputs (the per-agent guideline files and skill dirs listed in the
+README's *Agent coverage* table — `CLAUDE.md`, `AGENTS.md`,
+`GEMINI.md`, `.claude/skills/`, `.cursor/skills/`, `.agents/skills/`,
+`.github/skills/`, `.junie/skills/`, `.kiro/skills/`) are **not
+committed** because the sync-command tests exercise the same
+filesystem paths and would clobber any committed copies on every
+`pest` run.
 
 After `composer install`, generate them locally:
 
