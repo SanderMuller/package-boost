@@ -9,6 +9,7 @@ use function Orchestra\Testbench\package_path;
 const SHIPPED_SKILLS = [
     'ci-matrix-troubleshooting',
     'cross-version-laravel-support',
+    'lean-dist',
     'package-development',
 ];
 

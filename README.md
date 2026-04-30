@@ -13,6 +13,7 @@ AI tooling for Laravel package developers. Bridges the gap between [Laravel Boos
 - Syncs `.ai/guidelines/` into `CLAUDE.md`, `AGENTS.md`, and `.github/copilot-instructions.md`
 - Generates `.mcp.json` pointing to `vendor/bin/testbench boost:mcp` when Boost is installed
 - Ships a `package-development` skill that teaches AI agents how to work with Testbench
+- Ships a `lean-dist` skill that on-ramps consumers to [`stolt/lean-package-validator`](https://github.com/raphaelstolt/lean-package-validator) for `.gitattributes` hygiene, with AI-era `export-ignore` entries (`.ai`, `.claude`, `AGENTS.md`, `CLAUDE.md`, …) lpv's defaults don't cover
 
 ## Installation
 

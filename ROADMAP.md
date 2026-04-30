@@ -6,8 +6,15 @@ Boost changes. For shipped work, see `CHANGELOG.md`.
 
 ## Open
 
-Nothing planned. The last feature spec (`composer-auto-sync-hook`)
-shipped with 0.8.1; no concrete requests open.
+- **`lean-dist` skill** — shipped skill that on-ramps consumers
+  to `stolt/lean-package-validator` (lpv) for `.gitattributes`
+  hygiene, plus an AI-era `.lpv` glob seed (`.ai/`, `.claude/`,
+  `AGENTS.md`, `CLAUDE.md`, `.cursor/`, etc.) that lpv's defaults
+  don't cover. lpv already ships three package-boost-format skills
+  (`creating-` / `updating-` / `validating-gitattributes-file`)
+  picked up by vendor-discovery once installed; this skill
+  handles the install + AI-era patterns + edge-case guard so the
+  three lpv skills can take over the per-command work.
 
 ## Ongoing / external
 
