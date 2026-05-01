@@ -4,6 +4,7 @@ namespace SanderMuller\PackageBoost\Tests;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\Process\Process;
 
 use function Orchestra\Testbench\package_path;
 use function Orchestra\Testbench\workbench_path;
@@ -31,6 +32,37 @@ function shippedConfigPath(): string
     return package_path('config/package-boost.php');
 }
 
+/**
+ * Load the workbench config file as PHP and return the value under
+ * the `agents` key. Catches a class of regressions string assertions
+ * miss — like the 0.10.0 bug where the regex replacement wrote a
+ * literal `${indent}` prefix to the line, producing invalid PHP that
+ * still passed every `toContain('agents...')` test.
+ *
+ * Spawns a subprocess (rather than `require`-ing in-process) because
+ * PHP's include-file cache returns the first-loaded compiled version
+ * even after the file changes on disk, defeating the point of the
+ * test. A clean child-process `require` always sees the latest bytes.
+ */
+function workbenchAgents(): mixed
+{
+    $path = workbench_path('config/package-boost.php');
+    $code = sprintf(
+        '$c = require %s; '
+        . 'echo serialize(is_array($c) ? (array_key_exists(\'agents\', $c) ? $c[\'agents\'] : \'__missing__\') : \'__not-an-array__\');',
+        var_export($path, true),
+    );
+
+    $process = new Process([PHP_BINARY, '-r', $code]);
+    $process->run();
+
+    if (! $process->isSuccessful()) {
+        return '__exec-failed__: ' . $process->getErrorOutput();
+    }
+
+    return unserialize($process->getOutput());
+}
+
 it('writes agents = null on --all and copies the shipped template when missing', function (): void {
     expect(File::exists(workbench_path('config/package-boost.php')))->toBeFalse();
 
@@ -38,16 +70,18 @@ it('writes agents = null on --all and copies the shipped template when missing',
 
     expect($exit)->toBe(0)
         ->and(File::exists(workbench_path('config/package-boost.php')))->toBeTrue()
-        ->and(workbenchConfig())->toContain("'agents' => null,")
+        ->and(workbenchConfig())->toMatch("/^    'agents' => null,$/m")
         // Comment header from the shipped template must survive the copy.
-        ->and(workbenchConfig())->toContain('Selected Agents');
+        ->and(workbenchConfig())->toContain('Selected Agents')
+        ->and(workbenchAgents())->toBeNull();
 });
 
 it('writes the explicit list passed via --agents=', function (): void {
     $exit = Artisan::call('package-boost:install', ['--agents' => 'claude_code,cursor']);
 
     expect($exit)->toBe(0)
-        ->and(workbenchConfig())->toContain("'agents' => ['claude_code', 'cursor'],");
+        ->and(workbenchConfig())->toMatch("/^    'agents' => \\['claude_code', 'cursor'\\],$/m")
+        ->and(workbenchAgents())->toBe(['claude_code', 'cursor']);
 });
 
 it('rejects unknown agent names from --agents=', function (): void {
@@ -80,10 +114,11 @@ PHP);
 
     expect($exit)->toBe(0);
     $contents = workbenchConfig();
-    expect($contents)->toContain("'agents' => ['claude_code'],")
+    expect($contents)->toMatch("/^    'agents' => \\['claude_code'\\],$/m")
         ->and($contents)->toContain('User custom comment that must survive')
         ->and($contents)->toContain('User-added override')
-        ->and($contents)->toContain("'discover_vendor_packages' => false,");
+        ->and($contents)->toContain("'discover_vendor_packages' => false,")
+        ->and(workbenchAgents())->toBe(['claude_code']);
 });
 
 it('refuses to write when the agents key is on multiple lines', function (): void {
@@ -144,7 +179,8 @@ PHP);
     $exit = Artisan::call('package-boost:install', ['--agents' => 'claude_code,cursor,gemini']);
 
     expect($exit)->toBe(0)
-        ->and(workbenchConfig())->toContain("'agents' => ['claude_code', 'cursor', 'gemini'],");
+        ->and(workbenchConfig())->toMatch("/^    'agents' => \\['claude_code', 'cursor', 'gemini'\\],$/m")
+        ->and(workbenchAgents())->toBe(['claude_code', 'cursor', 'gemini']);
 });
 
 it('rejects --agents= when the value parses to an empty list', function (): void {
@@ -160,7 +196,25 @@ it('parses --agents= with whitespace and trailing commas', function (): void {
     $exit = Artisan::call('package-boost:install', ['--agents' => ' claude_code , cursor , ']);
 
     expect($exit)->toBe(0)
-        ->and(workbenchConfig())->toContain("'agents' => ['claude_code', 'cursor'],");
+        ->and(workbenchConfig())->toMatch("/^    'agents' => \\['claude_code', 'cursor'\\],$/m")
+        ->and(workbenchAgents())->toBe(['claude_code', 'cursor']);
+});
+
+it('preserves the indent of the existing agents line (regression: ${indent} backref leak)', function (): void {
+    // 0.10.0 regression — replacement used `${indent}` (named-group
+    // backref), which PHP preg_replace doesn't expand for replacements.
+    // The literal string `${indent}` was written to disk, producing
+    // invalid PHP. Tab indent here exercises a non-default whitespace
+    // shape so we'd notice if the indent capture stops working too.
+    File::ensureDirectoryExists(workbench_path('config'));
+    File::put(workbench_path('config/package-boost.php'), "<?php declare(strict_types=1);\n\nreturn [\n\n\t'agents' => null,\n\n];\n");
+
+    $exit = Artisan::call('package-boost:install', ['--agents' => 'claude_code,copilot']);
+
+    expect($exit)->toBe(0)
+        ->and(workbenchConfig())->not->toContain('${indent}')
+        ->and(workbenchConfig())->toMatch("/^\\t'agents' => \\['claude_code', 'copilot'\\],$/m")
+        ->and(workbenchAgents())->toBe(['claude_code', 'copilot']);
 });
 
 it('warns when legacy .github/copilot-instructions.md is present at install time', function (): void {

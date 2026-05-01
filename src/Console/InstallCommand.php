@@ -258,8 +258,11 @@ class InstallCommand extends Command
 
         // Match `'agents' => null,` or `'agents' => ['a', 'b'],` strictly
         // on one line. Multi-line arrays are the documented failure mode.
-        $pattern = "/^(?P<indent>[ \t]*)'agents'\s*=>\s*(?:null|\[[^\]\n]*\])\s*,\s*$/m";
-        $replacement = '${indent}\'agents\' => ' . $rendered . ',';
+        // `$1` is the captured indent — PHP `preg_replace` only honours
+        // positional backreferences in replacements, not named ones, so a
+        // `${indent}` literal would leak verbatim into the file.
+        $pattern = "/^([ \t]*)'agents'\s*=>\s*(?:null|\[[^\]\n]*\])\s*,\s*$/m";
+        $replacement = '$1\'agents\' => ' . $rendered . ',';
         $count = 0;
         $updated = preg_replace($pattern, $replacement, $content, 1, $count);
 
