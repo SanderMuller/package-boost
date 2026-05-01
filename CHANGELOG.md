@@ -2,6 +2,27 @@
 
 All notable changes to `package-boost` will be documented in this file.
 
+## 0.10.1 - 2026-05-01
+
+### Bug fix
+
+`package-boost:install` was writing the literal four characters
+`${indent}` to the start of the rewritten `'agents' => ...,` line,
+producing invalid PHP in `workbench/config/package-boost.php`:
+
+```php
+${indent}'agents' => ['claude_code', 'copilot'],
+
+```
+The `preg_replace` replacement string used `${indent}` as a named-
+group backreference, but PHP only honours positional backreferences
+(`$1`, `${1}`) in `preg_replace` replacements — named ones are
+emitted verbatim. Switched to `$1` against the (now-unnamed) first
+capture group; existing comments, indentation, and unrelated config
+keys still survive the rewrite.
+
+**Full Changelog**: https://github.com/SanderMuller/package-boost/compare/0.10.0...0.10.1
+
 ## 0.10.0 - 2026-05-01
 
 ### What's new
@@ -33,6 +54,7 @@ Interactive picker for the agent set:
 ```bash
 vendor/bin/testbench package-boost:install
 
+
 ```
 Defaults pre-fill in this order: existing `package-boost.agents`
 config → import from `laravel/boost`'s `boost.json` if Boost is
@@ -49,6 +71,7 @@ key, hand-customised formatting) refuse with a clear diagnostic.
 ```php
 // config/package-boost.php
 'agents' => null,  // null = all 9; or e.g. ['claude_code', 'cursor']
+
 
 ```
 Unknown agent names trigger a non-fatal warning naming each typo and
@@ -67,6 +90,7 @@ warns. To remove it automatically:
 
 ```bash
 vendor/bin/testbench package-boost:sync --prune
+
 
 ```
 `--prune` refuses if the file has user content outside the block,
@@ -90,6 +114,7 @@ WARN  Generated artifacts exist for agents NOT in `package-boost.agents`:
   These were synced under a previous selection. Re-include the agent
   or delete the paths manually.
 
+
 ```
 Auto-removal is intentionally not done — guideline files may carry
 user content outside the package-boost-guidelines block. Surface and
@@ -101,6 +126,7 @@ let the user decide.
 
 ```json
 { "mcp": { "action": "skipped", "reason": "claude-not-selected" } }
+
 
 ```
 Joins the existing `laravel-boost-not-installed` reason. The
@@ -187,6 +213,7 @@ activate on `composer update` with no publish step required:
 ],
 
 
+
 ```
 - `discover_vendor_packages` — toggle off to restore 0.8.x
   behavior (shipped + host `.ai/` only). No consumer has asked
@@ -227,6 +254,7 @@ Boost is installed or not.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
+
 
 
 ```
@@ -365,6 +393,7 @@ composer update sandermuller/package-boost
 
 
 
+
 ```
 Nothing changes at runtime. Consumers see the README additions and
 the new `CHANGELOG.md` link on the next visit to the repo.
@@ -396,6 +425,7 @@ vendor/bin/testbench boost:update
 
 
 
+
 ```
 Several floating skill bundles reference a `boost:update` command
 that never existed — the real command has always been
@@ -421,6 +451,7 @@ between.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -470,11 +501,13 @@ and compared. Drift is reported as an `updated` action with a
 
 
 
+
 ```
 **Large diffs collapse to counts:**
 
 ```
 ~ .claude/skills/package-development (content: 4 differ, 1 added, 1 removed)
+
 
 
 
@@ -485,6 +518,7 @@ output carries the same string in the `hint` field:
 
 ```json
 { "target": ".claude/skills/package-development", "hint": "content: SKILL.md differs" }
+
 
 
 
@@ -499,6 +533,7 @@ test run (Ctrl-C, fatal) can't leak artefacts into a subsequent
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -601,6 +636,7 @@ jq -r '
 
 
 
+
 ```
 ## Upgrading
 
@@ -627,6 +663,7 @@ first.
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --format=json
+
 
 
 
@@ -664,6 +701,7 @@ rather than stderr text.
 
 
 
+
 ```
 Field rules:
 
@@ -698,6 +736,7 @@ structurally instead of via warn text:
 
 
 
+
 ```
 `drift` treats skipped categories as non-drift.
 
@@ -709,6 +748,7 @@ vendor/bin/testbench package-boost:sync --format=yaml
 
 
 
+
 ```
 Exits non-zero with guidance.
 
@@ -716,6 +756,7 @@ Exits non-zero with guidance.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -736,6 +777,7 @@ additive.
           echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
           exit 1
       fi
+
 
 
 
@@ -818,6 +860,7 @@ dedicated sub-table:
 
 
 
+
 ```
 Readers without Boost installed see the heading, understand the rows
 don't apply, and skip. PHPUnit-only packages stop reading Pest-first
@@ -892,11 +935,13 @@ vendor/bin/testbench package-boost:sync
 
 
 
+
 ```
 Or, in CI:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check
+
 
 
 
@@ -950,6 +995,7 @@ MCP:
 
 
 
+
 ```
 After (0.4.1):
 
@@ -963,6 +1009,7 @@ MCP:
 
 
 
+
 ```
 The three categories now render uniformly. `--show-unchanged` still
 controls whether the per-target `= .mcp.json` line is printed
@@ -972,6 +1019,7 @@ alongside the summary.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -999,6 +1047,7 @@ vendor/bin/testbench package-boost:sync --check
 
 
 
+
 ```
 Computes planned actions, writes nothing, exits non-zero if any skill,
 guideline, or MCP target diverges from its source. Use in CI to catch
@@ -1010,6 +1059,7 @@ Combines with the subcommand flags:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --guidelines
+
 
 
 
@@ -1036,6 +1086,7 @@ MCP:
 
 
 
+
 ```
 Glyphs:
 
@@ -1053,6 +1104,7 @@ Skill updates annotate the new symlink target:
 
 
 
+
 ```
 Guideline updates show line-delta:
 
@@ -1061,11 +1113,13 @@ Guideline updates show line-delta:
 
 
 
+
 ```
 ### `--show-unchanged` flag
 
 ```bash
 vendor/bin/testbench package-boost:sync --show-unchanged
+
 
 
 
@@ -1097,12 +1151,14 @@ vendor/bin/testbench package-boost:sync
 
 
 
+
 ```
 Add a drift check to CI. Example GitHub Actions step:
 
 ```yaml
 - name: Check package-boost sync
   run: vendor/bin/testbench package-boost:sync --check
+
 
 
 
