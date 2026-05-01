@@ -2,6 +2,140 @@
 
 All notable changes to `package-boost` will be documented in this file.
 
+## 0.10.0 - 2026-05-01
+
+### What's new
+
+#### Multi-agent sync
+
+Three guideline files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`) and
+six unique skill dirs:
+
+| Agent          | Guidelines  | Skills dir       |
+|----------------|-------------|------------------|
+| Claude Code    | `CLAUDE.md` | `.claude/skills` |
+| Cursor         | `AGENTS.md` | `.cursor/skills` |
+| GitHub Copilot | `AGENTS.md` | `.github/skills` |
+| Codex CLI      | `AGENTS.md` | `.agents/skills` |
+| Gemini CLI     | `GEMINI.md` | `.agents/skills` |
+| Junie          | `AGENTS.md` | `.junie/skills`  |
+| Kiro           | `AGENTS.md` | `.kiro/skills`   |
+| OpenCode       | `AGENTS.md` | `.agents/skills` |
+| Amp            | `AGENTS.md` | `.agents/skills` |
+
+`.agents/skills` is shared across Codex, Gemini, OpenCode, and Amp —
+sync writes there once and dedupes.
+
+#### `package-boost:install` command
+
+Interactive picker for the agent set:
+
+```bash
+vendor/bin/testbench package-boost:install
+
+```
+Defaults pre-fill in this order: existing `package-boost.agents`
+config → import from `laravel/boost`'s `boost.json` if Boost is
+installed → detection-marker scan against the project (`.cursor/`,
+`.kiro/`, `CLAUDE.md`, etc.) → all 9. The selection persists to
+`workbench/config/package-boost.php` via a single-line regex-replace
+of the `'agents' =>` key, preserving comments and unrelated keys.
+Non-interactive flags: `--all`, `--agents=claude_code,cursor`,
+`--no-import`. Adversarial config shapes (multi-line array, missing
+key, hand-customised formatting) refuse with a clear diagnostic.
+
+#### `agents` config key
+
+```php
+// config/package-boost.php
+'agents' => null,  // null = all 9; or e.g. ['claude_code', 'cursor']
+
+```
+Unknown agent names trigger a non-fatal warning naming each typo and
+listing the supported set, so a misconfigured selection is visible
+without breaking sync. When `claude_code` is filtered out, MCP sync
+is skipped (`--check` reports `claude-not-selected`) — per-agent MCP
+serializers are out of scope for this release.
+
+#### Migration: legacy `.github/copilot-instructions.md`
+
+Upstream Boost migrated Copilot guidelines from
+`.github/copilot-instructions.md` into `AGENTS.md`. Package-boost
+matches that — the legacy file is no longer written. Sync detects
+the leftover with our `<package-boost-guidelines>` tag block and
+warns. To remove it automatically:
+
+```bash
+vendor/bin/testbench package-boost:sync --prune
+
+```
+`--prune` refuses if the file has user content outside the block,
+**or** if the block has been hand-edited / is stale relative to
+current `.ai/` sources. Run a regular `package-boost:sync` first to
+refresh the block, then `--prune` to clean up.
+
+#### Deselected-agent artifact warnings
+
+When `package-boost.agents` is narrowed after a previous broader
+sync (for example, dropping from "all" to `['claude_code']`), the
+generated files for the now-deselected agents stay on disk —
+`.cursor/skills/`, `GEMINI.md`, `.mcp.json`, etc. Sync now scans for
+these and warns:
+
+```
+WARN  Generated artifacts exist for agents NOT in `package-boost.agents`:
+  - .cursor/skills/ (14 entries)
+  - GEMINI.md (contains <package-boost-guidelines> block)
+  - .mcp.json (laravel-boost mcpServers entry present)
+  These were synced under a previous selection. Re-include the agent
+  or delete the paths manually.
+
+```
+Auto-removal is intentionally not done — guideline files may carry
+user content outside the package-boost-guidelines block. Surface and
+let the user decide.
+
+#### JSON output: new `claude-not-selected` skip reason
+
+`--format=json` adds a stable shape for the gated MCP case:
+
+```json
+{ "mcp": { "action": "skipped", "reason": "claude-not-selected" } }
+
+```
+Joins the existing `laravel-boost-not-installed` reason. The
+schema's `skipped` semantics are unchanged; only the reason
+identifier is new.
+
+### Breaking change
+
+`.github/copilot-instructions.md` is no longer written. Existing
+consumers will see a warning on the next sync; clean up via
+`package-boost:sync --prune` or by deleting the file manually. No
+config or API change is required — Copilot reads `AGENTS.md` now,
+which package-boost has been writing alongside `CLAUDE.md` since
+0.7.0.
+
+### Internals
+
+- `Agents\Registry` is the single source of truth for agent paths,
+  detection markers, and selection filtering. The 9 entries are
+  frozen against `laravel/boost@8ed9f84` (verified by direct source
+  read of `src/Install/Agents/*` and `src/BoostManager.php:22-32`).
+- `Agents\BoostImporter` reads `boost.json` at the project root,
+  filters against the registry, returns `null` for missing /
+  malformed / unknown-only inputs.
+- `Console\DeselectedAgentArtifacts` enumerates orphans across
+  skills, guidelines, and MCP for the warning above.
+- `Console\LegacyCopilotInstructions` owns the legacy-file detect /
+  prune contract, with the prune-safety check that compares the
+  file's tag block to the freshly composed expected block.
+- `SyncCommand`'s class cognitive complexity stays under PHPStan's
+  budget by extracting the post-categories rendering and final-exit
+  decisions into named helpers.
+
+**Full Changelog**: https://github.com/SanderMuller/package-boost/compare/0.9.0...0.10.0
+
 ## 0.9.0 - 2026-04-19
 
 ### Package Boost v0.9.0
@@ -52,6 +186,7 @@ activate on `composer update` with no publish step required:
     'sandermuller/package-boost',
 ],
 
+
 ```
 - `discover_vendor_packages` — toggle off to restore 0.8.x
   behavior (shipped + host `.ai/` only). No consumer has asked
@@ -92,6 +227,7 @@ Boost is installed or not.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
+
 
 ```
 The first sync after upgrading may add skills or guidelines
@@ -228,6 +364,7 @@ before authoring their own content.
 composer update sandermuller/package-boost
 
 
+
 ```
 Nothing changes at runtime. Consumers see the README additions and
 the new `CHANGELOG.md` link on the next visit to the repo.
@@ -258,6 +395,7 @@ vendor/bin/testbench boost:update
 #   ...
 
 
+
 ```
 Several floating skill bundles reference a `boost:update` command
 that never existed — the real command has always been
@@ -283,6 +421,7 @@ between.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 ```
@@ -330,11 +469,13 @@ and compared. Drift is reported as an `updated` action with a
 ~ .claude/skills/package-development (content: SKILL.md differs, rules/a.md added, rules/b.md removed)
 
 
+
 ```
 **Large diffs collapse to counts:**
 
 ```
 ~ .claude/skills/package-development (content: 4 differ, 1 added, 1 removed)
+
 
 
 ```
@@ -344,6 +485,7 @@ output carries the same string in the `hint` field:
 
 ```json
 { "target": ".claude/skills/package-development", "hint": "content: SKILL.md differs" }
+
 
 
 ```
@@ -357,6 +499,7 @@ test run (Ctrl-C, fatal) can't leak artefacts into a subsequent
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 ```
@@ -457,6 +600,7 @@ jq -r '
 ' | sort -u | sed "s|^|  - |"
 
 
+
 ```
 ## Upgrading
 
@@ -483,6 +627,7 @@ first.
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --format=json
+
 
 
 ```
@@ -518,6 +663,7 @@ rather than stderr text.
 }
 
 
+
 ```
 Field rules:
 
@@ -551,6 +697,7 @@ structurally instead of via warn text:
 "mcp":    { "action": "skipped", "reason": "laravel-boost-not-installed" }
 
 
+
 ```
 `drift` treats skipped categories as non-drift.
 
@@ -561,6 +708,7 @@ vendor/bin/testbench package-boost:sync --format=yaml
 # ERROR  Invalid --format value 'yaml'; expected 'text' or 'json'.
 
 
+
 ```
 Exits non-zero with guidance.
 
@@ -568,6 +716,7 @@ Exits non-zero with guidance.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 ```
@@ -587,6 +736,7 @@ additive.
           echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
           exit 1
       fi
+
 
 
 ```
@@ -667,6 +817,7 @@ dedicated sub-table:
 | `php artisan boost:mcp`     | `vendor/bin/testbench boost:mcp`     |
 
 
+
 ```
 Readers without Boost installed see the heading, understand the rows
 don't apply, and skip. PHPUnit-only packages stop reading Pest-first
@@ -740,11 +891,13 @@ composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
 
 
+
 ```
 Or, in CI:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check
+
 
 
 ```
@@ -796,6 +949,7 @@ Guidelines:
 MCP:
 
 
+
 ```
 After (0.4.1):
 
@@ -808,6 +962,7 @@ MCP:
   total: 1 unchanged
 
 
+
 ```
 The three categories now render uniformly. `--show-unchanged` still
 controls whether the per-target `= .mcp.json` line is printed
@@ -817,6 +972,7 @@ alongside the summary.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 ```
@@ -842,6 +998,7 @@ handling against malformed input.
 vendor/bin/testbench package-boost:sync --check
 
 
+
 ```
 Computes planned actions, writes nothing, exits non-zero if any skill,
 guideline, or MCP target diverges from its source. Use in CI to catch
@@ -853,6 +1010,7 @@ Combines with the subcommand flags:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --guidelines
+
 
 
 ```
@@ -877,6 +1035,7 @@ MCP:
   = .mcp.json (unchanged; not listed)
 
 
+
 ```
 Glyphs:
 
@@ -893,6 +1052,7 @@ Skill updates annotate the new symlink target:
 ~ .claude/skills/package-development (symlink → ../../vendor/sandermuller/package-boost/resources/boost/skills/package-development)
 
 
+
 ```
 Guideline updates show line-delta:
 
@@ -900,11 +1060,13 @@ Guideline updates show line-delta:
 ~ CLAUDE.md (+12 lines)
 
 
+
 ```
 ### `--show-unchanged` flag
 
 ```bash
 vendor/bin/testbench package-boost:sync --show-unchanged
+
 
 
 ```
@@ -934,12 +1096,14 @@ composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
 
 
+
 ```
 Add a drift check to CI. Example GitHub Actions step:
 
 ```yaml
 - name: Check package-boost sync
   run: vendor/bin/testbench package-boost:sync --check
+
 
 
 ```
