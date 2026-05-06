@@ -111,3 +111,8 @@ the published `config/package-boost.php`. Keys match Boost's
 `GuidelineComposer` convention (`foundation`, `livewire/core`, etc.).
 See the README's _Customising excluded guidelines_ section for the
 publish command and config path.
+
+### See also
+
+- `readme` skill — generic and Laravel-specific README authoring + staleness audit pattern.
+- `release-notes` skill — drafting GitHub release bodies / release notes for tagged versions.

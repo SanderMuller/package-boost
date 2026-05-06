@@ -80,6 +80,10 @@ Scan `README.md` against the commits in this release (`git log <last-tag>..HEAD`
 
 If unsure whether a change warrants a README update: would a user reading the README after the release see outdated advice? If yes, update.
 
+The `readme` skill (`resources/boost/skills/readme/SKILL.md`) owns the canonical staleness-audit checklist — apply its **Audit pattern** section here. For drafting the GitHub release body itself, use the `release-notes` skill. **For breaking releases**, also produce or update an `UPGRADING.md` via the `upgrading` skill — every `## Breaking changes` bullet in the release body must link to a matching UPGRADING.md anchor (gated by `5d. UPGRADING.md` below).
+
+Confirm the references shipped under `resources/boost/skills/{readme,release-notes,upgrading}/references/` have been reviewed since the last Laravel / Filament / Livewire / Nova major release. Stale framework-version notes in those references propagate to every consumer.
+
 #### 5b. `.ai/` skills + guidelines
 
 The `.ai/skills/` and `.ai/guidelines/` directories are synced by `package-boost` (`vendor/bin/testbench package-boost:sync`) to the per-agent skill dirs and guideline files listed in the README's *Agent coverage* table (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.claude/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`, `.junie/skills/`, `.kiro/skills/`). Those generated files are regenerated locally — they're gitignored in this repo because the sync-command tests exercise the same filesystem paths.
@@ -107,8 +111,10 @@ Generated files are not committed (see the `release-automation` guideline).
 | 2. Pint        | `vendor/bin/pint --dirty --format agent \|\| true`              | clean                            |
 | 3. PHPStan     | `vendor/bin/phpstan analyse --memory-limit=2G \|\| true`        | 0 errors                         |
 | 4. Tests       | `vendor/bin/pest \|\| true`                                     | 0 failures                       |
-| 5a. README     | manual scan vs `git log <last-tag>..HEAD`                       | no stale claims                  |
+| 5a. README     | apply `readme` skill's Audit pattern                            | no stale claims                  |
 | 5b. Boost docs | `vendor/bin/testbench package-boost:sync \|\| true`             | `.ai/` ↔ generated files in sync |
+| 5c. References | scan `resources/boost/skills/{readme,release-notes,upgrading}/references/*.md` against current Laravel/Filament/Livewire/Nova majors | references current |
+| 5d. UPGRADING.md | (only if breaking changes in this release) verify UPGRADING.md updated and every bullet under the release body's `## Breaking changes` section ends with `[UPGRADING.md#anchor](UPGRADING.md#anchor)` resolving to a matching anchor | guide updated, all breaking-change bullet links resolve |
 
 ## Release Notes
 

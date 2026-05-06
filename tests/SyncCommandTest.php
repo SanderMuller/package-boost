@@ -11,6 +11,26 @@ const SHIPPED_SKILLS = [
     'cross-version-laravel-support',
     'lean-dist',
     'package-development',
+    'readme',
+    'release-notes',
+    'upgrading',
+];
+
+/** Skills that ship a `references/` subdirectory; pin propagation to guard against future single-file copy regressions. */
+const SHIPPED_SKILLS_WITH_REFERENCES = [
+    ['readme', 'laravel-package.md'],
+    ['release-notes', 'laravel-package.md'],
+    ['upgrading', 'laravel-package.md'],
+];
+
+/** All per-agent skill directories sync writes to. Six unique paths cover the 9 agents — `.agents/skills` is shared. */
+const AGENT_SKILL_DIRS = [
+    '.claude/skills',
+    '.cursor/skills',
+    '.agents/skills',
+    '.github/skills',
+    '.junie/skills',
+    '.kiro/skills',
 ];
 
 beforeEach(function (): void {
@@ -31,7 +51,7 @@ function wipeArtifacts(): void
 
     File::delete(package_path('.ai/guidelines/test.md'));
 
-    foreach (['.claude/skills', '.cursor/skills', '.agents/skills', '.github/skills', '.junie/skills', '.kiro/skills'] as $dir) {
+    foreach (AGENT_SKILL_DIRS as $dir) {
         File::deleteDirectory(package_path($dir));
     }
 
@@ -58,6 +78,23 @@ function seedVendorGuideline(string $package, string $filename, string $body): v
     $dir = package_path('vendor/' . $package . '/resources/boost/guidelines');
     File::ensureDirectoryExists($dir);
     File::put($dir . '/' . $filename, $body);
+}
+
+/** @return list<string> Names of host-internal skill directories (`.ai/skills/*`) — never propagate to consumers. */
+function hostInternalSkillNames(): array
+{
+    $dirs = glob(package_path('.ai/skills/*'), GLOB_ONLYDIR);
+
+    return $dirs === false ? [] : array_map(basename(...), $dirs);
+}
+
+/** @return list<string> Absolute paths to every shipped skill SKILL.md and references/*.md file. */
+function shippedSkillBodyPaths(): array
+{
+    $skills = glob(package_path('resources/boost/skills/*/SKILL.md'));
+    $refs = glob(package_path('resources/boost/skills/*/references/*.md'));
+
+    return array_merge($skills === false ? [] : $skills, $refs === false ? [] : $refs);
 }
 
 it('syncs user and shipped skills to agent directories', function (): void {
@@ -91,6 +128,31 @@ it('ships skill after a bare sync', function (string $skill): void {
     expect(is_link(package_path('.claude/skills/' . $skill)))->toBeTrue()
         ->and(File::exists(package_path('.claude/skills/' . $skill . '/SKILL.md')))->toBeTrue();
 })->with(SHIPPED_SKILLS);
+
+it('ships skill `references/` subtree alongside SKILL.md', function (string $skill, string $reference): void {
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    foreach (AGENT_SKILL_DIRS as $dir) {
+        expect(File::exists(package_path($dir . '/' . $skill . '/references/' . $reference)))
+            ->toBeTrue("Expected {$dir}/{$skill}/references/{$reference} to land via sync");
+    }
+})->with(SHIPPED_SKILLS_WITH_REFERENCES);
+
+it('shipped skill bodies do not cross-reference host-internal skills', function (): void {
+    // Backtick-wrapped names only ("`pre-release`"); bare time qualifiers ("at pre-release time") are fine.
+    $shipped = shippedSkillBodyPaths();
+    $hostInternalSkills = hostInternalSkillNames();
+
+    foreach ($shipped as $file) {
+        $body = (string) File::get($file);
+        foreach ($hostInternalSkills as $name) {
+            $needle = '`' . $name . '`';
+            expect(str_contains($body, $needle))->toBeFalse(
+                "Shipped skill body {$file} cross-references host-internal skill {$needle} — consumers don't have this skill. Drop the reference or promote required guidance into shipped docs."
+            );
+        }
+    }
+});
 
 it('syncs shipped foundation and user guidelines into agent files', function (): void {
     File::ensureDirectoryExists(package_path('.ai/guidelines'));
@@ -495,7 +557,7 @@ it('honours excluded_vendor_packages', function (): void {
 it('writes skills to all 6 unique agent dirs by default', function (): void {
     $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
 
-    foreach (['.claude/skills', '.cursor/skills', '.agents/skills', '.github/skills', '.junie/skills', '.kiro/skills'] as $dir) {
+    foreach (AGENT_SKILL_DIRS as $dir) {
         expect(File::exists(package_path($dir . '/package-development/SKILL.md')))
             ->toBeTrue("expected package-development skill at {$dir}");
     }
@@ -720,7 +782,7 @@ it('writes all 9-agent paths when agents = null', function (): void {
 
     $this->artisan('package-boost:sync', ['--skills' => true, '--guidelines' => true])->assertSuccessful();
 
-    foreach (['.claude/skills', '.cursor/skills', '.agents/skills', '.github/skills', '.junie/skills', '.kiro/skills'] as $dir) {
+    foreach (AGENT_SKILL_DIRS as $dir) {
         expect(File::exists(package_path($dir . '/package-development/SKILL.md')))->toBeTrue();
     }
 
