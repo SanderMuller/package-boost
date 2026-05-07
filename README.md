@@ -13,10 +13,13 @@ AI tooling for Laravel package developers. Bridges the gap between [Laravel Boos
 - Syncs `.ai/guidelines/` into `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`
 - Generates `.mcp.json` pointing to `vendor/bin/testbench boost:mcp` when Boost is installed
 - Ships a `package-development` skill that teaches AI agents how to work with Testbench
+- Ships a `cross-version-laravel-support` skill for packages that must span multiple Laravel / PHP majors — composer constraints, feature detection, version guards, Testbench compatibility
+- Ships a `ci-matrix-troubleshooting` skill that diagnoses red CI matrix cells — `prefer-lowest` / `prefer-stable` resolves, security-advisories floors, Testbench / PHPUnit version interlock
 - Ships a `lean-dist` skill that on-ramps consumers to [`stolt/lean-package-validator`](https://github.com/raphaelstolt/lean-package-validator) for `.gitattributes` hygiene, with AI-era `export-ignore` entries (`.ai`, `.claude`, `AGENTS.md`, `CLAUDE.md`, …) lpv's defaults don't cover
 - Ships a `readme` skill that teaches the two README shapes (stub vs comprehensive), required sections, voice, and a canonical staleness-audit pattern — with a `references/laravel-package.md` layer for Laravel-package-specific conventions
 - Ships a `release-notes` skill that helps maintainers draft GitHub release bodies — defaulting to GitHub's auto-generated format and overriding only when major/breaking — with Laravel-package-specific guidance for version-matrix shifts and CHANGELOG-automation interplay
 - Ships an `upgrading` skill that teaches the canonical UPGRADING.md shape (reverse-chronological per-major sections, version-comment-labelled before/after code, impact tagging, stable H2 anchors that release-notes' `## Breaking changes` bullets link to) — with Laravel-package conventions for the four observed filename variants and ecosystem-plugin upgrade patterns
+- Ships a `skill-authoring` skill that guards against silent skill-name collisions across host / vendor / package-boost defaults, teaches activating frontmatter, and pins the `.ai/skills/` vs `resources/boost/skills/` source-dir choice
 
 ### Agent coverage
 

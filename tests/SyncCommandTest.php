@@ -13,6 +13,7 @@ const SHIPPED_SKILLS = [
     'package-development',
     'readme',
     'release-notes',
+    'skill-authoring',
     'upgrading',
 ];
 
@@ -475,6 +476,19 @@ it('discovers skills contributed by installed vendor packages', function (): voi
         ->assertSuccessful();
 
     expect(File::exists(package_path('.claude/skills/alpha-skill/SKILL.md')))->toBeTrue();
+});
+
+it('lets the alphabetically later vendor win a vendor-vendor skill collision', function (): void {
+    // Per README §"Vendor-contributed skills and guidelines": vendor packages
+    // load alphabetically by `vendor/name`, and later entries overwrite earlier
+    // ones on basename collision. Pin the precedence so the shipped
+    // `skill-authoring` collision table can't drift away from real behaviour.
+    seedVendorSkill('pb-fixture/alpha', 'collide-me', "---\nname: collide-me\ndescription: alpha vendor.\n---\n");
+    seedVendorSkill('pb-fixture/zeta', 'collide-me', "---\nname: collide-me\ndescription: zeta vendor.\n---\n");
+
+    $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
+
+    expect(File::get(package_path('.claude/skills/collide-me/SKILL.md')))->toContain('zeta vendor');
 });
 
 it('lets host .ai/ override a vendor-contributed skill of the same name', function (): void {
