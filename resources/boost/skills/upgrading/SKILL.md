@@ -1,6 +1,6 @@
 ---
 name: upgrading
-description: "Helps maintainers write UPGRADING.md / UPGRADE.md files — the canonical source of truth for migration steps between major versions. Teaches per-major sections, before/after code, version-jump rules. Points to `references/laravel-package.md` for ecosystem conventions. Activates when: writing UPGRADING.md, drafting an upgrade guide, planning a major version bump, or user mentions UPGRADING, upgrade guide, migration steps."
+description: "Use when writing UPGRADING.md or UPGRADE.md — migration steps between major versions. Covers per-major sections, before/after code, version-jump rules. Laravel conventions in `references/laravel-package.md`. Activates: writing UPGRADING.md, drafting an upgrade guide, planning a major version bump; mentions: UPGRADING, upgrade guide, migration steps."
 ---
 
 # Upgrading

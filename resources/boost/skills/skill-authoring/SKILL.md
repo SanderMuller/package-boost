@@ -1,6 +1,6 @@
 ---
 name: skill-authoring
-description: "MUST USE when authoring an AI skill — creating a new SKILL.md, naming a skill, or deciding where one lives. Teaches namespacing to avoid silent collisions across host / vendor / package-boost shipped skills, frontmatter that actually triggers auto-activation, the `.ai/skills/` vs `resources/boost/skills/` source-dir choice, and the `package-boost:sync` regeneration step. Activates when: creating a skill, adding a skill, drafting a SKILL.md, naming a skill, choosing where a skill lives, editing any `.ai/skills/**/SKILL.md` or `resources/boost/skills/**/SKILL.md`, or user mentions: skill, SKILL.md, skill name, skill namespace, skill collision, vendor skill, shipped skill."
+description: "MUST USE when authoring an AI skill — creating a new SKILL.md, naming a skill, or deciding where one lives. Covers namespacing across host/vendor/shipped skills, auto-activating frontmatter, `.ai/skills/` vs `resources/boost/skills/` choice, and `package-boost:sync` regen. Activates: creating a skill, adding a skill, drafting a SKILL.md, naming a skill, choosing where a skill lives, editing `.ai/skills/**/SKILL.md` or `resources/boost/skills/**/SKILL.md`; mentions: skill, SKILL.md, skill name, skill namespace, skill collision, vendor skill, shipped skill."
 ---
 
 # Skill Authoring
@@ -82,17 +82,37 @@ frontmatter exactly.
 ## 3. Write a description that actually triggers
 
 The frontmatter `description` is the trigger surface for
-auto-activation. A vague one ("Helps with reviews") never matches; a
-specific one matches reliably.
+auto-activation **and** counts against a global skill-description
+budget — every word ships in every host's prompt. A vague description
+("Helps with reviews") never matches; a bloated one wastes tokens.
+Aim for specific *and* terse, **in that order**.
+
+**Triggers come first.** When trimming an existing description, never
+remove or compress a user-facing trigger phrase to save tokens.
+Trim the surrounding prose instead. Concretely:
+
+- Keep every trigger phrase verbatim — do not abbreviate
+  (`backwards compatibility` not `backwards compat`,
+  `minimum laravel version` not `min laravel version`).
+- Do not collapse distinct phrases into slash-shorthand
+  (`.claude in tarball, CLAUDE.md in tarball` — not
+  `.claude/CLAUDE.md in tarball`). Users type one or the other,
+  not the bundle.
+- Avoid wildcards in trigger phrases (`illuminate/support version`
+  not `illuminate/* version`) unless the original full phrase is
+  also present.
 
 Required ingredients:
 
-- **Lead with the action.** "Helps maintainers …", "Use when …",
-  "Reviews …". One sentence.
+- **Lead with the action.** "Use when …" / "Reviews …". Drop
+  articles and filler ("Helps maintainers", "any project", "for
+  any").
 - **Scenarios** the skill applies to.
-- **Trigger phrases** after `Activates when:` — natural-language
-  phrases a user would type. Include verbs (`writing`, `drafting`,
-  `auditing`) and nouns the user would actually use.
+- **Trigger phrases** after `Activates:` — natural-language phrases
+  a user would type. Include verbs (`writing`, `drafting`,
+  `auditing`) and nouns the user would actually use. Comma-separated.
+  Split into `Activates: {scenarios}; mentions: {user phrases}` for
+  readability.
 - **Guardrail prefix.** For skills that must run before other work
   (collision-prevention, irreversible-edit safety), prefix with
   `MUST USE when …`.
@@ -100,18 +120,21 @@ Required ingredients:
 Pattern:
 
 ```yaml
-description: "Helps maintainers {do thing} for {scope}. {One sentence
-on what's taught.} Activates when: {scenario 1}, {scenario 2}, or
-user mentions {phrase 1}, {phrase 2}, {phrase 3}."
+description: "Use when {trigger}. {Short what-it-covers, optional.}
+Activates: {scenario 1}, {scenario 2}; mentions: {phrase 1},
+{phrase 2}, {phrase 3}."
 ```
 
 For a guardrail skill:
 
 ```yaml
-description: "MUST USE when {trigger condition}. {What it prevents.}
-Activates when: {file-path triggers}, {scenarios}, or user mentions
-{phrases}."
+description: "MUST USE when {trigger}. {What it prevents.} Activates:
+{file-path triggers}, {scenarios}; mentions: {phrases}."
 ```
+
+Trim rules (apply to prose, not triggers): no articles (a/an/the),
+no filler (just/really/any), short synonyms (`covers` not `teaches
+you about`), drop the project scope when implied.
 
 Look at sibling shipped skills (`readme`, `upgrading`,
 `release-notes`) for working examples.
@@ -170,8 +193,9 @@ with the package and the `--check` mode will fail CI if they drift.
       `.ai/skills/`.
 - [ ] Name doesn't collide with a reserved shipped-skill name
       unless override is intentional.
-- [ ] `description` leads with the action, lists scenarios, and has
-      an `Activates when:` trigger-phrase list.
+- [ ] `description` leads with the action, lists scenarios, has an
+      `Activates:` trigger-phrase list, and is trimmed of articles
+      and filler.
 - [ ] Source lives in `.ai/skills/` (host-only) or
       `resources/boost/skills/` (shipped to consumers) — not in any
       generated per-agent dir.

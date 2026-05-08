@@ -1,6 +1,6 @@
 ---
 name: lean-dist
-description: "Use when prepping a package release, when `.gitattributes` is missing or thin, or to keep `composer archive` / Packagist `--prefer-dist` tarballs lean. Activates on: lean dist, gitattributes, export-ignore, dist size, packagist tarball, composer archive bloat, lean-package-validator, stolt lpv, AI files in dist, .ai shipping to dist, .claude in tarball, CLAUDE.md in tarball, AGENTS.md in tarball."
+description: "Use when prepping package release, `.gitattributes` missing/thin, or keeping `composer archive` / Packagist `--prefer-dist` tarballs lean. Activates: lean dist, gitattributes, export-ignore, dist size, packagist tarball, composer archive bloat, lean-package-validator, stolt lpv, AI files in dist, .ai shipping to dist, .claude in tarball, CLAUDE.md in tarball, AGENTS.md in tarball."
 ---
 
 # Lean Dist

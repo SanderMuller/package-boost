@@ -1,6 +1,6 @@
 ---
 name: package-development
-description: "Use when developing Laravel packages with Orchestra Testbench. Activates when: writing package code, running package tests, working with testbench, configuring service providers, or when user mentions: package, testbench, package development, service provider."
+description: "Use when developing Laravel packages with Orchestra Testbench. Activates: writing package code, running package tests, working with testbench, configuring service providers; mentions: package, testbench, package development, service provider."
 ---
 
 # Laravel Package Development

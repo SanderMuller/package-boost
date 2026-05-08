@@ -3,7 +3,7 @@
 namespace SanderMuller\PackageBoost\Tests;
 
 use Illuminate\Support\Facades\File;
-use SanderMuller\PackageBoost\Console\SyncReporter;
+use SanderMuller\PackageBoost\Console\Internal\SyncReporter;
 
 use function Orchestra\Testbench\package_path;
 

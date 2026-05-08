@@ -1,7 +1,8 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
+/** @internal */
 final readonly class SyncFormatter
 {
     public function __construct(
@@ -42,8 +43,9 @@ final readonly class SyncFormatter
 
     /**
      * @param  array{skills?: SyncPlan, guidelines?: SyncPlan, mcp?: SyncPlan}  $plans
+     * @param  array<int, array{name: string, path: string, problems: array<int, string>}>  $frontmatterIssues
      */
-    public static function renderJson(array $plans, bool $check, bool $showUnchanged): string
+    public static function renderJson(array $plans, bool $check, bool $showUnchanged, array $frontmatterIssues = []): string
     {
         $doc = [
             'schema' => 1,
@@ -64,6 +66,17 @@ final readonly class SyncFormatter
             if ($plan->hasDrift()) {
                 $doc['drift'] = true;
             }
+        }
+
+        if ($frontmatterIssues !== []) {
+            $doc['frontmatter_issues'] = array_map(
+                static fn (array $issue): array => [
+                    'name' => $issue['name'],
+                    'path' => $issue['path'],
+                    'problems' => $issue['problems'],
+                ],
+                $frontmatterIssues,
+            );
         }
 
         return json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

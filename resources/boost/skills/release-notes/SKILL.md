@@ -1,6 +1,6 @@
 ---
 name: release-notes
-description: "Helps maintainers draft GitHub release bodies / release notes from a tag range or staged changes. Default: GitHub's auto-generated format. Override only when major/breaking. Points to `references/laravel-package.md` for ecosystem-specific notes. Activates when: writing release notes, drafting a release announcement, summarizing a tag range, or user mentions release notes, GitHub release, RELEASE_NOTES."
+description: "Use when drafting GitHub release bodies from a tag range or staged changes. Default: GitHub's auto-generated format; override only on major/breaking. Laravel notes in `references/laravel-package.md`. Activates: writing release notes, drafting a release announcement, summarizing a tag range; mentions: release notes, GitHub release, RELEASE_NOTES."
 ---
 
 # Release Notes

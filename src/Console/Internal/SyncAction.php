@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
 /**
- * A single target entry in a {@see SyncPlan}.
+ * @internal A single target entry in a {@see SyncPlan}.
  */
 final readonly class SyncAction
 {

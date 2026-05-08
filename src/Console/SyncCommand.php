@@ -5,6 +5,16 @@ namespace SanderMuller\PackageBoost\Console;
 use Illuminate\Console\Command;
 use SanderMuller\PackageBoost\Agents\Agent;
 use SanderMuller\PackageBoost\Agents\Registry;
+use SanderMuller\PackageBoost\Console\Internal\BoostDetector;
+use SanderMuller\PackageBoost\Console\Internal\DeselectedAgentArtifacts;
+use SanderMuller\PackageBoost\Console\Internal\LegacyCopilotInstructions;
+use SanderMuller\PackageBoost\Console\Internal\PackageRoot;
+use SanderMuller\PackageBoost\Console\Internal\SkillFrontmatter;
+use SanderMuller\PackageBoost\Console\Internal\SyncFormatter;
+use SanderMuller\PackageBoost\Console\Internal\SyncPlan;
+use SanderMuller\PackageBoost\Console\Internal\SyncPlanner;
+use SanderMuller\PackageBoost\Console\Internal\SyncSources;
+use SanderMuller\PackageBoost\Console\Internal\SyncWriter;
 
 class SyncCommand extends Command
 {
@@ -15,12 +25,16 @@ class SyncCommand extends Command
         {--check : Report drift without writing; exits non-zero if sources diverge from generated files}
         {--show-unchanged : Print unchanged entries per line instead of only counting them in the summary}
         {--format=text : Output format — "text" (default, glyph-per-line) or "json" (structured, for CI parsing)}
-        {--prune : Remove the legacy .github/copilot-instructions.md file when it contains only our tag block; refuses if user content is present}';
+        {--prune : Remove the legacy .github/copilot-instructions.md file when it contains only our tag block; refuses if user content is present}
+        {--prune-orphans : Remove generated artefacts (skill dirs, guideline blocks, .mcp.json entries) for agents that fell out of `package-boost.agents`. Strips the package-boost block from guideline files; deletes the file only if no user content remains.}';
 
     protected $description = 'Sync .ai/ skills and guidelines to agent directories';
 
     /** @var ?array<int, Agent> Memoised selection — built once per `handle()` invocation. */
     private ?array $selectedAgents = null;
+
+    /** @var array<int, array{name: string, path: string, problems: array<int, string>}> */
+    private array $frontmatterIssues = [];
 
     /**
      * Resolve the user-selected agent set from `config('package-boost.agents')`.
@@ -83,10 +97,12 @@ class SyncCommand extends Command
 
     public function handle(): int
     {
-        // Reset the per-invocation memo. Console commands are singleton-bound
+        // Reset per-invocation state. Console commands are singleton-bound
         // in the container, so a long-lived test runner (or any process that
-        // calls Artisan::call twice) would otherwise see stale selection.
+        // calls Artisan::call twice) would otherwise see stale selection
+        // and stale frontmatter findings.
         $this->selectedAgents = null;
+        $this->frontmatterIssues = [];
 
         $formatOption = $this->option('format');
         $format = is_string($formatOption) ? $formatOption : 'text';
@@ -123,12 +139,18 @@ class SyncCommand extends Command
     private function renderPostCategoryOutput(string $format, array $plans, bool $check, bool $showUnchanged, string $root): void
     {
         if ($format === 'json') {
-            $this->output->writeln(rtrim(SyncFormatter::renderJson($plans, $check, $showUnchanged)));
+            $this->output->writeln(rtrim(SyncFormatter::renderJson($plans, $check, $showUnchanged, $this->frontmatterIssues)));
 
             return;
         }
 
-        $this->warnAboutDeselectedAgentArtifacts($root);
+        $this->warnAboutFrontmatterIssues();
+
+        if ($this->option('prune-orphans') === true && ! $check) {
+            $this->pruneDeselectedAgentArtifacts($root);
+        } else {
+            $this->warnAboutDeselectedAgentArtifacts($root);
+        }
 
         if ($this->option('prune') === true && ! $check) {
             $this->pruneLegacyCopilotInstructions($root);
@@ -139,22 +161,82 @@ class SyncCommand extends Command
         $this->warnAboutLegacyCopilotInstructions($root);
     }
 
+    private function pruneDeselectedAgentArtifacts(string $root): void
+    {
+        $removed = DeselectedAgentArtifacts::prune($root, $this->selectedAgents());
+
+        if ($removed === []) {
+            return;
+        }
+
+        $this->components->info(
+            "Pruned orphan artefacts:\n  - " . implode("\n  - ", $removed)
+        );
+    }
+
+    /**
+     * Surface SKILL.md frontmatter problems collected during sync. We never
+     * fail a normal sync on a lint issue — a malformed shipped/vendor skill
+     * shouldn't block the host's update — but `--check` does fail-fast so
+     * CI catches a host-authored skill before it ships.
+     */
+    private function warnAboutFrontmatterIssues(): void
+    {
+        if ($this->frontmatterIssues === []) {
+            return;
+        }
+
+        $lines = [];
+
+        foreach ($this->frontmatterIssues as $issue) {
+            $lines[] = $issue['name'] . ': ' . implode('; ', $issue['problems']);
+        }
+
+        $this->components->warn(
+            "SKILL.md frontmatter issues detected:\n  - " . implode("\n  - ", $lines)
+            . "\nFix the source files (or remove the offending skill) and re-run sync."
+        );
+    }
+
     /**
      * @param  array<string, SyncPlan>  $plans
      */
     private function finalExit(array $plans, string $format, bool $check): int
     {
         $drift = collect($plans)->contains(static fn (SyncPlan $plan): bool => $plan->hasDrift());
+        $hostFrontmatterDrift = $check && $this->hasHostFrontmatterIssues();
 
-        if (! $check || ! $drift) {
+        if (! $check || (! $drift && ! $hostFrontmatterDrift)) {
             return self::SUCCESS;
         }
 
         if ($format === 'text') {
-            $this->components->error('Generated files are out of sync. Run `package-boost:sync` without --check.');
+            $this->components->error(
+                $drift
+                    ? 'Generated files are out of sync. Run `package-boost:sync` without --check.'
+                    : 'SKILL.md frontmatter issues detected in host `.ai/skills/` content (see warning above).'
+            );
         }
 
         return self::FAILURE;
+    }
+
+    /**
+     * Only fail `--check` for issues under the host's `.ai/skills/` —
+     * shipped / vendor skills that drift would otherwise block the host's
+     * CI on something they don't control.
+     */
+    private function hasHostFrontmatterIssues(): bool
+    {
+        $hostPrefix = $this->resolvePackageRoot() . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills' . DIRECTORY_SEPARATOR;
+
+        foreach ($this->frontmatterIssues as $issue) {
+            if (str_starts_with($issue['path'], $hostPrefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -200,7 +282,8 @@ class SyncCommand extends Command
     private function categoriseSkills(string $root, bool $check): SyncPlan
     {
         $sources = SyncSources::skills($root);
-        $plan = $this->planSkills($root, $sources);
+        $this->frontmatterIssues = SkillFrontmatter::lint($sources);
+        $plan = SyncPlanner::planSkills($root, $sources, $this->skillTargets());
 
         if (! $check) {
             $this->applySkills($plan, $root, $sources);
@@ -211,7 +294,7 @@ class SyncCommand extends Command
 
     private function categoriseGuidelines(string $root, bool $check): SyncPlan
     {
-        [$plan, $block] = $this->planGuidelines($root);
+        [$plan, $block] = SyncPlanner::planGuidelines($root, $this->guidelineTargets());
 
         if (! $check) {
             $this->applyGuidelines($plan, $root, $block);
@@ -226,7 +309,7 @@ class SyncCommand extends Command
             return SyncPlan::skipped('claude-not-selected');
         }
 
-        [$plan, $desired] = $this->planMcp($root);
+        [$plan, $desired] = SyncPlanner::planMcp($root, $this->boostInstalled());
 
         if (! $check) {
             $this->applyMcp($plan, $root, $desired);
@@ -245,11 +328,7 @@ class SyncCommand extends Command
 
     private function resolvePackageRoot(): string
     {
-        if (function_exists('Orchestra\Testbench\package_path')) {
-            return \Orchestra\Testbench\package_path();
-        }
-
-        return (string) getcwd();
+        return PackageRoot::resolve();
     }
 
     private function boostInstalled(): bool
@@ -341,101 +420,6 @@ class SyncCommand extends Command
     /**
      * @param  array<string, string>  $skills  name => source path
      */
-    private function planSkills(string $root, array $skills): SyncPlan
-    {
-        if ($skills === []) {
-            return SyncPlan::skipped('no-sources');
-        }
-
-        $new = [];
-        $updated = [];
-        $unchanged = [];
-        $removed = [];
-
-        foreach ($this->skillTargets() as $target) {
-            $targetDir = $root . DIRECTORY_SEPARATOR . $target;
-
-            foreach ($skills as $name => $source) {
-                $dest = $targetDir . DIRECTORY_SEPARATOR . $name;
-                [$action, $hint] = SyncReporter::planSkillAction($source, $dest);
-                $entry = new SyncAction("{$target}/{$name}", hint: $hint !== '' ? $hint : null);
-
-                match ($action) {
-                    'new' => $new[] = $entry,
-                    'updated' => $updated[] = $entry,
-                    'unchanged' => $unchanged[] = $entry,
-                };
-            }
-
-            foreach ($this->existingSkillNames($targetDir) as $existing) {
-                if (isset($skills[$existing])) {
-                    continue;
-                }
-
-                $removed[] = new SyncAction("{$target}/{$existing}");
-            }
-        }
-
-        return new SyncPlan(new: $new, updated: $updated, unchanged: $unchanged, removed: $removed);
-    }
-
-    /**
-     * @return array{0: SyncPlan, 1: string}  plan + composed block for write phase
-     */
-    private function planGuidelines(string $root): array
-    {
-        $guidelines = SyncSources::guidelines($root);
-
-        if ($guidelines === '') {
-            return [SyncPlan::skipped('no-sources'), ''];
-        }
-
-        $block = "<package-boost-guidelines>\n{$guidelines}\n</package-boost-guidelines>";
-
-        $new = [];
-        $updated = [];
-        $unchanged = [];
-
-        foreach ($this->guidelineTargets() as $target) {
-            $filePath = $root . DIRECTORY_SEPARATOR . $target;
-            [$action, $hint, $lineDelta] = SyncReporter::planGuidelineAction($filePath, $block);
-            $entry = new SyncAction($target, hint: $hint !== '' ? $hint : null, lineDelta: $lineDelta);
-
-            match ($action) {
-                'new' => $new[] = $entry,
-                'updated' => $updated[] = $entry,
-                'unchanged' => $unchanged[] = $entry,
-            };
-        }
-
-        return [new SyncPlan(new: $new, updated: $updated, unchanged: $unchanged), $block];
-    }
-
-    /**
-     * @return array{0: SyncPlan, 1: array<mixed>}  plan + desired config for write phase
-     */
-    private function planMcp(string $root): array
-    {
-        if (! $this->boostInstalled()) {
-            return [SyncPlan::skipped('laravel-boost-not-installed'), []];
-        }
-
-        $mcpPath = $root . DIRECTORY_SEPARATOR . '.mcp.json';
-        [$action, $desired] = SyncReporter::planMcpAction($mcpPath, SyncSources::mcpConfig($mcpPath));
-
-        $entry = new SyncAction('.mcp.json');
-        $plan = match ($action) {
-            'new' => new SyncPlan(new: [$entry]),
-            'updated' => new SyncPlan(updated: [$entry]),
-            'unchanged' => new SyncPlan(unchanged: [$entry]),
-        };
-
-        return [$plan, $desired];
-    }
-
-    /**
-     * @param  array<string, string>  $skills  name => source path
-     */
     private function applySkills(SyncPlan $plan, string $root, array $skills): void
     {
         foreach ([...$plan->new, ...$plan->updated] as $action) {
@@ -469,23 +453,5 @@ class SyncCommand extends Command
             $root . DIRECTORY_SEPARATOR . '.mcp.json',
             json_encode($desired, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
         );
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    private function existingSkillNames(string $targetDir): array
-    {
-        if (! is_dir($targetDir)) {
-            return [];
-        }
-
-        $entries = glob($targetDir . DIRECTORY_SEPARATOR . '*');
-
-        if ($entries === false) {
-            return [];
-        }
-
-        return array_map(basename(...), $entries);
     }
 }

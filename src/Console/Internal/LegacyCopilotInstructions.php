@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
 /**
  * @internal Migration helpers for the legacy `.github/copilot-instructions.md`

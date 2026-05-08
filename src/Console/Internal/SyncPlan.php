@@ -1,11 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
 /**
- * Immutable description of what a single sync category (skills, guidelines,
- * mcp) would do on the next run. Either populated with four action buckets,
- * or skipped with a reason code (no sources, Laravel Boost absent, etc.).
+ * @internal Immutable description of what a single sync category (skills,
+ * guidelines, mcp) would do on the next run. Either populated with four
+ * action buckets, or skipped with a reason code (no sources, Laravel Boost
+ * absent, etc.).
  */
 final readonly class SyncPlan
 {

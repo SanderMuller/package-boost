@@ -1007,3 +1007,104 @@ it('--check fails when only one category is drifting', function (): void {
         ->expectsOutputToContain('Generated files are out of sync')
         ->assertExitCode(1);
 });
+
+it('--prune-orphans removes deselected skill dirs', function (): void {
+    Artisan::call('package-boost:sync', ['--skills' => true]);
+    expect(is_dir(package_path('.cursor/skills')))->toBeTrue();
+
+    config()->set('package-boost.agents', ['claude_code']);
+
+    $exit = Artisan::call('package-boost:sync', ['--skills' => true, '--prune-orphans' => true]);
+    $output = Artisan::output();
+
+    expect($exit)->toBe(0)
+        ->and(is_dir(package_path('.cursor/skills')))->toBeFalse()
+        ->and(is_dir(package_path('.claude/skills')))->toBeTrue()
+        ->and($output)->toContain('Pruned orphan artefacts')
+        ->and($output)->toContain('.cursor/skills/');
+});
+
+it('--prune-orphans deletes guideline files that contain only our block', function (): void {
+    Artisan::call('package-boost:sync', ['--guidelines' => true]);
+    expect(File::exists(package_path('GEMINI.md')))->toBeTrue();
+
+    config()->set('package-boost.agents', ['claude_code']);
+
+    Artisan::call('package-boost:sync', ['--guidelines' => true, '--prune-orphans' => true]);
+
+    expect(File::exists(package_path('GEMINI.md')))->toBeFalse();
+});
+
+it('--prune-orphans strips our block but keeps guideline files with user content', function (): void {
+    Artisan::call('package-boost:sync', ['--guidelines' => true]);
+    File::put(package_path('GEMINI.md'), "# User notes\n\n" . file_get_contents(package_path('GEMINI.md')) . "\n## More notes\n");
+
+    config()->set('package-boost.agents', ['claude_code']);
+
+    Artisan::call('package-boost:sync', ['--guidelines' => true, '--prune-orphans' => true]);
+
+    $contents = (string) file_get_contents(package_path('GEMINI.md'));
+
+    expect($contents)->toContain('# User notes')
+        ->and($contents)->toContain('## More notes')
+        ->and($contents)->not->toContain('<package-boost-guidelines>');
+});
+
+it('--prune-orphans removes the laravel-boost entry from .mcp.json when claude is deselected', function (): void {
+    Artisan::call('package-boost:sync', ['--mcp' => true]);
+    expect(File::exists(package_path('.mcp.json')))->toBeTrue();
+
+    config()->set('package-boost.agents', ['cursor']);
+
+    Artisan::call('package-boost:sync', ['--mcp' => true, '--prune-orphans' => true]);
+
+    expect(File::exists(package_path('.mcp.json')))->toBeFalse();
+});
+
+it('--prune-orphans is a no-op under --check', function (): void {
+    Artisan::call('package-boost:sync', ['--skills' => true]);
+    expect(is_dir(package_path('.cursor/skills')))->toBeTrue();
+
+    config()->set('package-boost.agents', ['claude_code']);
+
+    Artisan::call('package-boost:sync', [
+        '--skills' => true,
+        '--check' => true,
+        '--prune-orphans' => true,
+    ]);
+
+    expect(is_dir(package_path('.cursor/skills')))->toBeTrue();
+});
+
+it('does not carry frontmatter findings from a prior --skills run into a later --guidelines run', function (): void {
+    File::ensureDirectoryExists(package_path('.ai/skills/stale-skill'));
+    File::put(package_path('.ai/skills/stale-skill/SKILL.md'), "no frontmatter\n");
+
+    // First call: --skills surfaces the issue.
+    Artisan::call('package-boost:sync', ['--skills' => true]);
+    expect(Artisan::output())->toContain('frontmatter');
+
+    // Second call: --guidelines must not re-emit the warning, the lint state
+    // belongs to the skills category and isn't recomputed when skills is skipped.
+    Artisan::call('package-boost:sync', ['--guidelines' => true]);
+    expect(Artisan::output())->not->toContain('frontmatter');
+});
+
+it('emits frontmatter_issues in --check JSON when host SKILL.md is malformed', function (): void {
+    File::ensureDirectoryExists(package_path('.ai/skills/stale-skill'));
+    File::put(package_path('.ai/skills/stale-skill/SKILL.md'), "no frontmatter\n");
+
+    Artisan::call('package-boost:sync', ['--check' => true, '--format' => 'json']);
+    $output = Artisan::output();
+    $decoded = json_decode($output, true);
+
+    expect($decoded)->toBeArray();
+
+    $issues = is_array($decoded) && isset($decoded['frontmatter_issues']) && is_array($decoded['frontmatter_issues'])
+        ? $decoded['frontmatter_issues']
+        : [];
+
+    $names = array_map(static fn (mixed $issue): ?string => is_array($issue) && isset($issue['name']) && is_string($issue['name']) ? $issue['name'] : null, $issues);
+
+    expect($names)->toContain('stale-skill');
+});

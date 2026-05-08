@@ -5,9 +5,11 @@ namespace SanderMuller\PackageBoost;
 use Illuminate\Config\Repository;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Boost\BoostServiceProvider;
+use SanderMuller\PackageBoost\Console\DoctorCommand;
 use SanderMuller\PackageBoost\Console\InstallCommand;
+use SanderMuller\PackageBoost\Console\LeanCommand;
+use SanderMuller\PackageBoost\Console\NewCommand;
 use SanderMuller\PackageBoost\Console\SyncCommand;
-use SanderMuller\PackageBoost\Console\UpdateCommand;
 
 class PackageBoostServiceProvider extends ServiceProvider
 {
@@ -20,9 +22,11 @@ class PackageBoostServiceProvider extends ServiceProvider
         $this->applyUserConfigOverrides();
 
         $this->commands([
+            DoctorCommand::class,
             InstallCommand::class,
+            LeanCommand::class,
+            NewCommand::class,
             SyncCommand::class,
-            UpdateCommand::class,
         ]);
     }
 

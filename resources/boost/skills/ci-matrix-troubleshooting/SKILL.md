@@ -1,6 +1,6 @@
 ---
 name: ci-matrix-troubleshooting
-description: "Use when a package's CI matrix has gone red and needs diagnosis. Activates on: ci matrix fail, matrix red, prefer-lowest fail, prefer-stable fail, dependency conflict, composer resolve, version excluded, security-advisories floor, testbench phpunit interlock, matrix cell regression, or when user mentions a specific cell failing in GitHub Actions."
+description: "Use when CI matrix has gone red and needs diagnosis. Activates: ci matrix fail, matrix red, prefer-lowest fail, prefer-stable fail, dependency conflict, composer resolve, version excluded, security-advisories floor, testbench phpunit interlock, matrix cell regression; mentions: a specific cell failing in GitHub Actions."
 ---
 
 # CI Matrix Troubleshooting

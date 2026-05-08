@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\File;
 use SanderMuller\PackageBoost\Agents\Agent;
 use SanderMuller\PackageBoost\Agents\BoostImporter;
 use SanderMuller\PackageBoost\Agents\Registry;
+use SanderMuller\PackageBoost\Console\Internal\LegacyCopilotInstructions;
+use SanderMuller\PackageBoost\Console\Internal\PackageRoot;
 
 use function Laravel\Prompts\multiselect;
 
@@ -212,11 +214,7 @@ class InstallCommand extends Command
 
     private function resolvePackageRoot(): string
     {
-        if (function_exists('Orchestra\Testbench\package_path')) {
-            return \Orchestra\Testbench\package_path();
-        }
-
-        return (string) getcwd();
+        return PackageRoot::resolve();
     }
 
     /**

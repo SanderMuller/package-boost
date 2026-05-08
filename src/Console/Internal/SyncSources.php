@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
 use Symfony\Component\Finder\Finder;
 
@@ -31,6 +31,34 @@ final class SyncSources
         }
 
         return $skills;
+    }
+
+    /**
+     * Skill-source provenance with collisions preserved. Each skill name
+     * maps to the list of source paths that contributed it, in load order
+     * (shipped → vendor → host). Used by `package-boost:doctor` to
+     * surface silent overrides — a name with `count() > 1` means a later
+     * source shadowed an earlier one.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function traceSkills(string $root): array
+    {
+        $trace = [];
+
+        foreach (self::dirs($root, 'skills') as $dir) {
+            $entries = glob($dir . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR);
+
+            if ($entries === false) {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                $trace[basename($entry)][] = $entry;
+            }
+        }
+
+        return $trace;
     }
 
     /**
@@ -76,7 +104,7 @@ final class SyncSources
     private static function dirs(string $root, string $kind): array
     {
         $dirs = array_merge(
-            [dirname(__DIR__, 2) . '/resources/boost/' . $kind],
+            [dirname(__DIR__, 3) . '/resources/boost/' . $kind],
             self::vendorDirs($root, $kind),
             [$root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . $kind],
         );
@@ -109,7 +137,7 @@ final class SyncSources
         // the same directory (e.g. package-boost consumed as its own vendored
         // dep, or a symlinked dev checkout) would duplicate shipped content.
         // Structural guard, independent of the user-configurable exclude list.
-        $shippedReal = realpath(dirname(__DIR__, 2) . '/resources/boost/' . $kind);
+        $shippedReal = realpath(dirname(__DIR__, 3) . '/resources/boost/' . $kind);
 
         $byPackage = [];
 

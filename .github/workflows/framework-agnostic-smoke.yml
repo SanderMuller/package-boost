@@ -1,0 +1,118 @@
+name: Framework-agnostic smoke
+
+on:
+  push:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'resources/boost/**'
+      - '.github/workflows/framework-agnostic-smoke.yml'
+  pull_request:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'resources/boost/**'
+      - '.github/workflows/framework-agnostic-smoke.yml'
+
+jobs:
+  smoke:
+    name: Framework-agnostic Composer package
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+
+    steps:
+      - name: Checkout package-boost
+        uses: actions/checkout@v6
+        with:
+          path: package-boost
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip
+          coverage: none
+
+      - name: Scaffold a framework-agnostic consumer package
+        run: |
+          mkdir -p host
+          cat > host/composer.json <<'JSON'
+          {
+              "name": "smoke/framework-agnostic-consumer",
+              "type": "library",
+              "description": "Smoke harness — verifies package-boost works with no laravel/framework dep.",
+              "require": {
+                  "php": "^8.2"
+              },
+              "require-dev": {
+                  "orchestra/testbench": "^9.0||^10.0||^11.0",
+                  "sandermuller/package-boost": "*"
+              },
+              "repositories": [
+                  {
+                      "type": "path",
+                      "url": "../package-boost",
+                      "options": {"symlink": true}
+                  }
+              ],
+              "minimum-stability": "dev",
+              "prefer-stable": true,
+              "config": {
+                  "allow-plugins": {
+                      "pestphp/pest-plugin": true,
+                      "phpstan/extension-installer": true
+                  }
+              }
+          }
+          JSON
+
+          cat > host/testbench.yaml <<'YAML'
+          laravel: '@testbench'
+
+          providers:
+            - SanderMuller\PackageBoost\PackageBoostServiceProvider
+          YAML
+
+
+      - name: Confirm consumer composer.json does not declare laravel/framework
+        run: |
+          cd host
+          if grep -E '"laravel/framework"|"illuminate/framework"' composer.json; then
+            echo "::error::host composer.json must NOT depend on laravel/framework"
+            exit 1
+          fi
+
+      - name: Install consumer dependencies
+        run: |
+          cd host
+          composer install --no-interaction --prefer-dist
+
+      - name: Run package-boost:sync
+        run: |
+          cd host
+          vendor/bin/testbench package-boost:sync
+
+      - name: Assert generated artefacts exist
+        run: |
+          cd host
+          test -f AGENTS.md || { echo "::error::AGENTS.md missing"; exit 1; }
+          test -f CLAUDE.md || { echo "::error::CLAUDE.md missing"; exit 1; }
+          test -f GEMINI.md || { echo "::error::GEMINI.md missing"; exit 1; }
+          test -L .claude/skills/package-development || test -d .claude/skills/package-development || { echo "::error::package-development skill missing"; exit 1; }
+          test -f .claude/skills/package-development/SKILL.md || { echo "::error::package-development SKILL.md missing"; exit 1; }
+          grep -q "<package-boost-guidelines>" AGENTS.md || { echo "::error::AGENTS.md missing managed block"; exit 1; }
+
+      - name: Assert MCP is gracefully skipped without laravel/boost
+        run: |
+          cd host
+          report=$(vendor/bin/testbench package-boost:sync --check --format=json || true)
+          echo "$report"
+          echo "$report" | jq -e '.mcp.reason == "laravel-boost-not-installed"' \
+            || { echo "::error::expected mcp.reason=laravel-boost-not-installed"; exit 1; }
+
+      - name: Run package-boost:doctor (allow non-zero — drift is expected the first run)
+        run: |
+          cd host
+          vendor/bin/testbench package-boost:doctor || true

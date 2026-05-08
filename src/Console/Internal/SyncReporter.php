@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
 use Symfony\Component\Finder\Finder;
 
@@ -10,9 +10,17 @@ use Symfony\Component\Finder\Finder;
 final class SyncReporter
 {
     /**
+     * Optionally pass `$sourceHashes` (a precomputed `hashTree($source)`)
+     * to skip re-hashing the source dir on every call — `SyncPlanner`
+     * uses this when planning a skill across N agent targets so the
+     * same source tree is hashed once instead of N times. The fallback
+     * behaviour (`null`) computes on demand and matches the original
+     * single-call signature.
+     *
+     * @param  ?array<string, string>  $sourceHashes
      * @return array{0: 'new'|'updated'|'unchanged', 1: string}
      */
-    public static function planSkillAction(string $source, string $dest): array
+    public static function planSkillAction(string $source, string $dest, ?array $sourceHashes = null): array
     {
         if (! is_link($dest) && ! file_exists($dest)) {
             return ['new', ''];
@@ -34,7 +42,7 @@ final class SyncReporter
         }
 
         if (is_dir($dest)) {
-            $sourceTree = self::hashTree($source);
+            $sourceTree = $sourceHashes ?? self::hashTree($source);
             $destTree = self::hashTree($dest);
 
             if ($sourceTree === $destTree) {

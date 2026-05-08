@@ -39,6 +39,15 @@ AI tooling sync for Composer packages — Laravel-aware, framework-agnostic supp
 
 `.agents/skills` is shared across Codex, Gemini, OpenCode, and Amp — sync writes there once and dedupes. Trim the list to the agents you actually use via `package-boost:install` (or set `agents` in `config/package-boost.php` directly).
 
+> **Note on skill-dir consumption.** Today only Claude Code natively reads
+> its skill dir as auto-activatable skills (each `SKILL.md` becomes a
+> tool-callable agent). The other eight agents primarily consume the
+> per-agent guidelines file (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`),
+> which package-boost concatenates from `.ai/guidelines/` and shipped
+> defaults. Their skill dirs are written for forward compatibility so
+> the same `.ai/skills/` source becomes useful to each tool the moment
+> it ships skill support — you don't need to re-author or re-sync.
+
 ## Installation
 
 ```bash
@@ -129,6 +138,15 @@ agents). Override non-interactively with `--all`,
         └── SKILL.md
 ```
 
+Or scaffold them with the right frontmatter pre-filled:
+
+```bash
+vendor/bin/testbench package-boost:new skill my-skill --description="One-line auto-activation hook."
+vendor/bin/testbench package-boost:new guideline my-conventions
+```
+
+`package-boost:new` rejects collisions unless you pass `--force`, and validates the name against the same kebab-case shape (`^[a-z][a-z0-9-]*$`) the frontmatter linter enforces — so a freshly scaffolded skill always passes `package-boost:doctor` without further edits.
+
 ### 3. Sync to agent directories
 
 ```bash
@@ -153,7 +171,7 @@ vendor/bin/testbench package-boost:sync --mcp
 vendor/bin/testbench package-boost:sync --check
 ```
 
-Reports planned actions without writing. Exits non-zero if any skill, guideline, or MCP target differs from its source. Use in CI to catch "forgot to sync" commits.
+Reports planned actions without writing. Exits non-zero if any skill, guideline, or MCP target differs from its source — or if any host `.ai/skills/<name>/SKILL.md` is missing required frontmatter (`name`, `description`) or has a name/directory mismatch. Shipped and vendor skill issues surface as warnings only; `--check` fails on host issues so CI catches them before they ship. Use in CI to catch "forgot to sync" commits.
 
 #### JSON output
 
@@ -235,9 +253,57 @@ then `--prune` to clean up.
 
 If you narrow `package-boost.agents` after a previous "all" sync,
 sync also warns about leftover skill dirs / guideline files / mcp
-entries from agents that fell out of the selection. These are not
-auto-removed (guideline files may carry user content); delete them
-manually or re-include the agent.
+entries from agents that fell out of the selection. To delete them
+automatically, pass `--prune-orphans`:
+
+```bash
+vendor/bin/testbench package-boost:sync --prune-orphans
+```
+
+Skill dirs are removed wholesale (sync writes them in their
+entirety). Guideline files have just the
+`<package-boost-guidelines>` block stripped; the file is deleted
+only when nothing but whitespace remains, so user-authored content
+outside the block is preserved. `.mcp.json` has the `laravel-boost`
+entry removed when `claude_code` is deselected.
+
+### One-shot diagnostic
+
+```bash
+vendor/bin/testbench package-boost:doctor
+```
+
+Aggregates the checks otherwise scattered across `--check`,
+`install`, and the legacy / orphan warnings into a single report:
+configured + effective agents, sync drift counts, SKILL.md
+frontmatter issues, deselected-agent orphans, vendor skill
+collisions, MCP / Boost detection, the legacy Copilot file, and the
+`.gitattributes` managed block. Exits non-zero on any finding.
+
+```bash
+vendor/bin/testbench package-boost:doctor --format=json
+```
+
+JSON variant is stable-shaped (`schema: 1`) and parseable by `jq`.
+
+### `.gitattributes` hygiene
+
+```bash
+vendor/bin/testbench package-boost:lean
+```
+
+Idempotently writes a managed `# >>> package-boost (managed) >>>` /
+`# <<< package-boost (managed) <<<` block into `.gitattributes`
+covering AI-era `export-ignore` paths (`.ai/`, `.claude/`, `.cursor/`,
+`.agents/`, `.junie/`, `.kiro/`, `AGENTS.md`, `CLAUDE.md`,
+`GEMINI.md`, …) so `composer archive` / Packagist `--prefer-dist`
+tarballs stay lean. User-authored entries outside the marker block
+are preserved verbatim. Pass `--check` to fail CI when the block
+drifts.
+
+The shipped `lean-dist` skill teaches the validation side
+(`stolt/lean-package-validator`); this command handles the write
+side.
 
 ### Composer script
 

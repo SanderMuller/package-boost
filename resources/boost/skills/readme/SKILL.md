@@ -1,6 +1,6 @@
 ---
 name: readme
-description: "Helps maintainers write or improve README files for any project. Teaches required sections, structure, voice, and a canonical staleness-audit pattern. Points to `references/laravel-package.md` for Laravel-package-specific conventions. Activates when: writing a README, improving an existing README, auditing a README for staleness, or user mentions readme, README.md, project documentation, package docs."
+description: "Use when writing or improving README files. Covers required sections, structure, voice, staleness-audit pattern. Laravel-package conventions in `references/laravel-package.md`. Activates: writing a README, improving an existing README, auditing a README for staleness; mentions: readme, README.md, project documentation, package docs."
 ---
 
 # README

@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace SanderMuller\PackageBoost\Console;
+namespace SanderMuller\PackageBoost\Console\Internal;
 
 use Illuminate\Contracts\Foundation\Application;
 use Laravel\Boost\BoostServiceProvider;

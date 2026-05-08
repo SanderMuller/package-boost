@@ -32,12 +32,6 @@ Boost changes. For shipped work, see `CHANGELOG.md`.
   resolver — but fixing upstream unblocks the wider ecosystem for
   Boost-only consumers.
 
-## Sunset
-
-- **`boost:update` alias removal** — introduced as a deprecated
-  alias in 0.8.0, removal target 0.11.0 (three minor releases).
-  Nothing to do until we cut 0.11.0.
-
 ## Out of scope (for now)
 
 Deliberate non-choices worth documenting so they don't resurface
