@@ -1,0 +1,26 @@
+* text=auto eol=lf
+
+.agents/ export-ignore
+.ai/ export-ignore
+.cache/ export-ignore
+.claude/ export-ignore
+.cursor/ export-ignore
+.cursorrules export-ignore
+.gitattributes export-ignore
+.github/ export-ignore
+.gitignore export-ignore
+.junie/ export-ignore
+.kiro/ export-ignore
+.windsurfrules export-ignore
+AGENTS.md export-ignore
+CLAUDE.md export-ignore
+GEMINI.md export-ignore
+ROADMAP.md export-ignore
+phpstan-baseline.neon export-ignore
+phpstan.neon.dist export-ignore
+phpunit.xml.dist export-ignore
+pint.json export-ignore
+rector.php export-ignore
+specs/ export-ignore
+testbench.yaml export-ignore
+tests/ export-ignore
