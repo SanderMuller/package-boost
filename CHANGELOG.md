@@ -2,6 +2,98 @@
 
 All notable changes to `package-boost` will be documented in this file.
 
+## 0.14.0 - 2026-05-08
+
+Three new commands round out the package-boost toolbelt: a one-shot
+`doctor` diagnostic, a managed-block `.gitattributes` writer (`lean`),
+and a frontmatter-aware skill/guideline scaffolder (`new`). `sync`
+gains `--prune-orphans` and a host-only `SKILL.md` frontmatter linter
+in `--check`. Internal classes move under `Console\Internal\` so the
+public command surface is finally clearly demarcated.
+
+### Highlights
+
+- **New `package-boost:doctor` command.** Aggregates the checks that
+  were previously scattered across `sync --check`, `install`, and the
+  legacy / orphan warnings into a single report: configured +
+  effective agents, sync drift counts, `SKILL.md` frontmatter issues,
+  deselected-agent orphans, vendor skill collisions, MCP / Boost
+  detection, the legacy Copilot file, and the `.gitattributes`
+  managed block. Exits non-zero on any finding. `--format=json` emits
+  a stable shape (`schema: 1`) parseable by `jq`.
+- **New `package-boost:lean` command.** Idempotently writes a managed
+  `# >>> package-boost (managed) >>>` / `# <<< package-boost (managed) <<<` block into `.gitattributes` covering AI-era
+  `export-ignore` paths (`.ai/`, `.claude/`, `.cursor/`, `.agents/`,
+  `.junie/`, `.kiro/`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, …) so
+  `composer archive` / Packagist `--prefer-dist` tarballs stay lean.
+  User-authored entries outside the marker block are preserved
+  verbatim. `--check` fails CI on drift. The shipped `lean-dist`
+  skill teaches the validation side
+  (`stolt/lean-package-validator`); this command handles the write
+  side.
+- **New `package-boost:new` command.** Scaffolds `.ai/skills/<name>/SKILL.md`
+  or `.ai/guidelines/<name>.md` with frontmatter pre-filled.
+  Rejects collisions unless `--force` is passed, and validates the
+  name against the same kebab-case shape (`^[a-z][a-z0-9-]*$`) the
+  frontmatter linter enforces — a freshly scaffolded skill always
+  passes `package-boost:doctor` without further edits.
+- **`sync --prune-orphans`.** Deletes generated artefacts for agents
+  that fell out of `package-boost.agents`: skill dirs are removed
+  wholesale (sync writes them in their entirety), guideline files
+  have just the `<package-boost-guidelines>` block stripped (the file
+  is deleted only when nothing but whitespace remains, so
+  user-authored content outside the block is preserved), and
+  `.mcp.json` has the `laravel-boost` entry removed when
+  `claude_code` is deselected. Replaces the prior warn-only
+  behaviour, which still ships as the default.
+- **`SKILL.md` frontmatter linter in `sync --check`.** Host-authored
+  `.ai/skills/<name>/SKILL.md` files now fail `--check` when missing
+  required frontmatter (`name`, `description`) or when name /
+  directory disagree. Shipped and vendor skills surface the same
+  issues as warnings only; CI catches host issues before they ship.
+- **`.gitattributes` managed block in this repo.** Now self-hosting
+  `package-boost:lean` — the same managed block ships in this
+  repository's `.gitattributes`. `stolt/lean-package-validator` is
+  installed as a dev dep for archive validation.
+- **Internal namespace move.** `BoostDetector`, `DeselectedAgentArtifacts`,
+  `LegacyCopilotInstructions`, `SyncAction`, `SyncFormatter`, `SyncPlan`,
+  `SyncReporter`, `SyncSources`, `SyncWriter`, plus new `DoctorReport`,
+  `PackageRoot`, `SkillFrontmatter`, and `SyncPlanner`, all move under
+  `SanderMuller\PackageBoost\Console\Internal\`. They were already
+  `@internal final readonly`; the namespace move makes the boundary
+  visible at a glance. Anything outside `Console\Internal\` is the
+  public surface.
+- **Skill-dir consumption note in README.** Calls out that today only
+  Claude Code natively reads its skill dir as auto-activatable
+  skills; the other eight agents primarily consume the per-agent
+  guideline file. Skill dirs are written for forward compatibility
+  so the same `.ai/skills/` source becomes useful to each tool the
+  moment it ships skill support — no re-author or re-sync required.
+
+### Removed
+
+- **`boost:update` deprecated alias.** Hidden, deprecated alias of
+  `package-boost:sync` since 0.8.0. Anyone still invoking
+  `boost:update` should switch to `package-boost:sync`; the previous
+  release already emitted a deprecation warning on every invocation.
+
+### Upgrading
+
+```bash
+composer update sandermuller/package-boost
+vendor/bin/testbench package-boost:sync
+vendor/bin/testbench package-boost:lean
+vendor/bin/testbench package-boost:doctor
+
+```
+Re-syncing rewrites the `<package-boost-guidelines>` block and skill
+dirs in every selected agent's directory. `package-boost:lean`
+writes the managed `.gitattributes` block (idempotent — safe to
+re-run). `package-boost:doctor` is a read-only diagnostic; run it to
+surface any remaining drift in one shot.
+
+**Full Changelog**: https://github.com/SanderMuller/package-boost/compare/0.13.0...0.14.0
+
 ## 0.13.0 - 2026-05-08
 
 Package-boost now treats every Composer package as in-scope, not just
@@ -23,6 +115,7 @@ adopters from the first sync.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
+
 
 ```
 Re-syncing rewrites the `<package-boost-guidelines>` block in every
@@ -46,6 +139,7 @@ only.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
+
 
 
 ```
@@ -77,6 +171,7 @@ vendor/bin/testbench package-boost:sync
 
 
 
+
 ```
 The first sync after upgrading writes the three new skills (and their `references/` subdirs) to every selected agent's skill dir. Existing skills are unaffected.
 
@@ -92,6 +187,7 @@ producing invalid PHP in `workbench/config/package-boost.php`:
 
 ```php
 ${indent}'agents' => ['claude_code', 'copilot'],
+
 
 
 
@@ -141,6 +237,7 @@ vendor/bin/testbench package-boost:install
 
 
 
+
 ```
 Defaults pre-fill in this order: existing `package-boost.agents`
 config → import from `laravel/boost`'s `boost.json` if Boost is
@@ -157,6 +254,7 @@ key, hand-customised formatting) refuse with a clear diagnostic.
 ```php
 // config/package-boost.php
 'agents' => null,  // null = all 9; or e.g. ['claude_code', 'cursor']
+
 
 
 
@@ -179,6 +277,7 @@ warns. To remove it automatically:
 
 ```bash
 vendor/bin/testbench package-boost:sync --prune
+
 
 
 
@@ -210,6 +309,7 @@ WARN  Generated artifacts exist for agents NOT in `package-boost.agents`:
 
 
 
+
 ```
 Auto-removal is intentionally not done — guideline files may carry
 user content outside the package-boost-guidelines block. Surface and
@@ -221,6 +321,7 @@ let the user decide.
 
 ```json
 { "mcp": { "action": "skipped", "reason": "claude-not-selected" } }
+
 
 
 
@@ -315,6 +416,7 @@ activate on `composer update` with no publish step required:
 
 
 
+
 ```
 - `discover_vendor_packages` — toggle off to restore 0.8.x
   behavior (shipped + host `.ai/` only). No consumer has asked
@@ -355,6 +457,7 @@ Boost is installed or not.
 ```bash
 composer update sandermuller/package-boost
 vendor/bin/testbench package-boost:sync
+
 
 
 
@@ -501,6 +604,7 @@ composer update sandermuller/package-boost
 
 
 
+
 ```
 Nothing changes at runtime. Consumers see the README additions and
 the new `CHANGELOG.md` link on the next visit to the repo.
@@ -536,6 +640,7 @@ vendor/bin/testbench boost:update
 
 
 
+
 ```
 Several floating skill bundles reference a `boost:update` command
 that never existed — the real command has always been
@@ -561,6 +666,7 @@ between.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -618,11 +724,13 @@ and compared. Drift is reported as an `updated` action with a
 
 
 
+
 ```
 **Large diffs collapse to counts:**
 
 ```
 ~ .claude/skills/package-development (content: 4 differ, 1 added, 1 removed)
+
 
 
 
@@ -644,6 +752,7 @@ output carries the same string in the `hint` field:
 
 
 
+
 ```
 ### `tests/tmp/` gitignored
 
@@ -655,6 +764,7 @@ test run (Ctrl-C, fatal) can't leak artefacts into a subsequent
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -765,6 +875,7 @@ jq -r '
 
 
 
+
 ```
 ## Upgrading
 
@@ -791,6 +902,7 @@ first.
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --format=json
+
 
 
 
@@ -836,6 +948,7 @@ rather than stderr text.
 
 
 
+
 ```
 Field rules:
 
@@ -874,6 +987,7 @@ structurally instead of via warn text:
 
 
 
+
 ```
 `drift` treats skipped categories as non-drift.
 
@@ -889,6 +1003,7 @@ vendor/bin/testbench package-boost:sync --format=yaml
 
 
 
+
 ```
 Exits non-zero with guidance.
 
@@ -896,6 +1011,7 @@ Exits non-zero with guidance.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -920,6 +1036,7 @@ additive.
           echo "$report" | jq -r '.guidelines.updated[].target,.skills.new[].target'
           exit 1
       fi
+
 
 
 
@@ -1010,6 +1127,7 @@ dedicated sub-table:
 
 
 
+
 ```
 Readers without Boost installed see the heading, understand the rows
 don't apply, and skip. PHPUnit-only packages stop reading Pest-first
@@ -1088,11 +1206,13 @@ vendor/bin/testbench package-boost:sync
 
 
 
+
 ```
 Or, in CI:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check
+
 
 
 
@@ -1154,6 +1274,7 @@ MCP:
 
 
 
+
 ```
 After (0.4.1):
 
@@ -1171,6 +1292,7 @@ MCP:
 
 
 
+
 ```
 The three categories now render uniformly. `--show-unchanged` still
 controls whether the per-target `= .mcp.json` line is printed
@@ -1180,6 +1302,7 @@ alongside the summary.
 
 ```bash
 composer update sandermuller/package-boost
+
 
 
 
@@ -1215,6 +1338,7 @@ vendor/bin/testbench package-boost:sync --check
 
 
 
+
 ```
 Computes planned actions, writes nothing, exits non-zero if any skill,
 guideline, or MCP target diverges from its source. Use in CI to catch
@@ -1226,6 +1350,7 @@ Combines with the subcommand flags:
 
 ```bash
 vendor/bin/testbench package-boost:sync --check --guidelines
+
 
 
 
@@ -1260,6 +1385,7 @@ MCP:
 
 
 
+
 ```
 Glyphs:
 
@@ -1281,6 +1407,7 @@ Skill updates annotate the new symlink target:
 
 
 
+
 ```
 Guideline updates show line-delta:
 
@@ -1293,11 +1420,13 @@ Guideline updates show line-delta:
 
 
 
+
 ```
 ### `--show-unchanged` flag
 
 ```bash
 vendor/bin/testbench package-boost:sync --show-unchanged
+
 
 
 
@@ -1337,12 +1466,14 @@ vendor/bin/testbench package-boost:sync
 
 
 
+
 ```
 Add a drift check to CI. Example GitHub Actions step:
 
 ```yaml
 - name: Check package-boost sync
   run: vendor/bin/testbench package-boost:sync --check
+
 
 
 
