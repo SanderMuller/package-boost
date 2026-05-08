@@ -3,7 +3,6 @@
 namespace SanderMuller\PackageBoost\Console;
 
 use Illuminate\Console\Command;
-use Laravel\Boost\BoostServiceProvider;
 use SanderMuller\PackageBoost\Agents\Agent;
 use SanderMuller\PackageBoost\Agents\Registry;
 
@@ -253,6 +252,11 @@ class SyncCommand extends Command
         return (string) getcwd();
     }
 
+    private function boostInstalled(): bool
+    {
+        return (new BoostDetector($this->getLaravel()))->installed();
+    }
+
     /**
      * Surface configured-but-unknown agent names so a typo in
      * `config/package-boost.php` is visible without breaking sync.
@@ -412,7 +416,7 @@ class SyncCommand extends Command
      */
     private function planMcp(string $root): array
     {
-        if (! class_exists(BoostServiceProvider::class, false)) {
+        if (! $this->boostInstalled()) {
             return [SyncPlan::skipped('laravel-boost-not-installed'), []];
         }
 

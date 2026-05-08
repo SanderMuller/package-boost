@@ -211,6 +211,73 @@ it('ships foundation guideline even without a user .ai/guidelines directory', fu
     }
 });
 
+it('shipped foundation does not unconditionally assert a Laravel package', function (): void {
+    // Acceptance criterion for non-Laravel adopters (`specs/non-laravel-package-support.md`):
+    // the shipped foundation must not declare the consumer's codebase a Laravel package
+    // unconditionally. A clearly-marked "If your package targets Laravel" subsection is
+    // fine; a top-level assertion is not. Hide the host's own `.ai/guidelines/` so we
+    // exercise the shipped block alone — same pattern as the no-user-guidelines test.
+    $guidelines = package_path('.ai/guidelines');
+    $stash = package_path('.ai/guidelines.stash');
+    $hasDogfood = is_dir($guidelines);
+
+    if ($hasDogfood) {
+        rename($guidelines, $stash);
+    }
+
+    try {
+        $this->artisan('package-boost:sync', ['--guidelines' => true])->assertSuccessful();
+
+        $claude = File::get(package_path('CLAUDE.md'));
+
+        // Structural check: split the synced block on the Laravel-conditional H2.
+        // Anything before that marker is the framework-agnostic preamble; anything
+        // after it is Laravel-scoped and may freely mention Laravel idioms.
+        $marker = "\n## If your package targets Laravel\n";
+        expect($claude)->toContain($marker)
+            ->and($claude)->toContain('Composer package');
+
+        $markerPos = strpos($claude, $marker);
+        $blockEndPos = strpos($claude, '</package-boost-guidelines>', $markerPos === false ? 0 : $markerPos);
+        $blockStart = (int) strpos($claude, '<package-boost-guidelines>');
+        $preamble = $markerPos === false ? '' : substr($claude, $blockStart, $markerPos - $blockStart);
+
+        expect($markerPos)->not->toBeFalse('Laravel-conditional H2 marker missing from synced block')
+            ->and($blockEndPos)->not->toBeFalse('package-boost-guidelines closing tag missing');
+
+        // Claim-variant scan: any phrasing that asserts the consumer's package
+        // *is* a Laravel package, *targets* Laravel, or *assumes* Laravel
+        // context belongs after the H2 marker, not before. Phrasing variants
+        // were the original bug class — exact-string blacklists are
+        // trivially bypassable. The list below covers the structural
+        // assertion shapes; literal Laravel-meta references (e.g. "Laravel
+        // Boost's default foundation", "(e.g. `php artisan` ... does not
+        // apply)") remain allowed because they describe the boundary of
+        // the rule, not the consumer.
+        $haystack = mb_strtolower($preamble);
+        $forbiddenClaimPatterns = [
+            'is a laravel',                 // "is a Laravel package", "is a Laravel application"
+            'is a **laravel',               // bold variant
+            'targets laravel package',
+            'targets laravel application',
+            'assume a laravel',             // "assume a Laravel package context"
+            'assume laravel',
+            'must be a laravel',
+            'package is a laravel',
+            'codebase is a laravel',
+        ];
+
+        foreach ($forbiddenClaimPatterns as $phrase) {
+            expect(mb_strpos($haystack, $phrase))
+                ->toBeFalse("Foundation preamble (before \"## If your package targets Laravel\") contains Laravel-claim phrase: '{$phrase}'. Move Laravel-specific assertions below the H2 marker.");
+        }
+    } finally {
+        if ($hasDogfood) {
+            rename($stash, $guidelines);
+        }
+    }
+});
+
 it('ships the Authoring guidelines section in the package-development skill', function (): void {
     $this->artisan('package-boost:sync', ['--skills' => true])->assertSuccessful();
 
@@ -434,6 +501,23 @@ it('JSON mode reports drift=false on a clean repo', function (): void {
 
     expect($exit)->toBe(0)
         ->and($json['drift'] ?? null)->toBeFalse();
+});
+
+it('skips MCP sync with reason laravel-boost-not-installed when Boost detector reports absent', function (): void {
+    // The suite-wide stub at `tests/Stubs/BoostServiceProvider.php` keeps
+    // `class_exists(BoostServiceProvider::class, false)` true throughout the
+    // run, masking the genuine no-Boost branch. The container-bound detector
+    // (`package-boost.boost-detector`) is the documented test seam — bind a
+    // closure that reports absent and assert the JSON skip shape.
+    app()->instance('package-boost.boost-detector', static fn (): bool => false);
+
+    [$exit, $json] = captureJsonSync(['--format' => 'json', '--mcp' => true, '--check' => true]);
+
+    $mcp = is_array($json['mcp'] ?? null) ? $json['mcp'] : [];
+
+    expect($exit)->toBe(0)
+        ->and($mcp['action'] ?? null)->toBe('skipped')
+        ->and($mcp['reason'] ?? null)->toBe('laravel-boost-not-installed');
 });
 
 it('JSON mode renders the MCP action object, not a collection', function (): void {

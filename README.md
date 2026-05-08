@@ -5,7 +5,7 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/package-boost/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/sandermuller/package-boost/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Laravel Compatibility](https://badge.laravel.cloud/badge/sandermuller/package-boost?style=flat)](https://packagist.org/packages/sandermuller/package-boost)
 
-AI tooling for Laravel package developers. Bridges the gap between [Laravel Boost](https://laravel.com/docs/boost) (designed for applications) and package development with [Orchestra Testbench](https://packages.tools/testbench).
+AI tooling sync for Composer packages — Laravel-aware, framework-agnostic supported. Bridges the gap between [Laravel Boost](https://laravel.com/docs/boost) (designed for applications) and package development with [Orchestra Testbench](https://packages.tools/testbench), and works the same way for non-Laravel Composer packages that adopt Testbench as a dev-only harness.
 
 ## What It Does
 
@@ -51,6 +51,55 @@ Add the service provider to your `testbench.yaml`:
 providers:
   - SanderMuller\PackageBoost\PackageBoostServiceProvider
 ```
+
+### Framework-agnostic packages
+
+Package-boost works for any Composer package, not just Laravel
+packages — Testbench is used as a dev-only command harness, not a
+runtime dependency of the package being developed. If your package
+doesn't already use Testbench, add it alongside package-boost:
+
+```bash
+composer require orchestra/testbench --dev
+composer require sandermuller/package-boost --dev
+```
+
+Create `testbench.yaml` at the package root with the framework
+sentinel and the package-boost provider — nothing else is required:
+
+```yaml
+laravel: '@testbench'
+
+providers:
+  - SanderMuller\PackageBoost\PackageBoostServiceProvider
+```
+
+Then sync:
+
+```bash
+vendor/bin/testbench package-boost:sync
+```
+
+`.mcp.json` generation is skipped automatically when `laravel/boost`
+isn't installed (`mcp.action: "skipped"`, `reason:
+"laravel-boost-not-installed"` in the JSON output) — guidelines and
+skills sync as normal.
+
+The verified framework-agnostic flow is `package-boost:sync` plus the
+zero-config "all agents" default. The interactive
+`package-boost:install` picker described under *Usage* below
+persists its choice via Testbench's `workbench/` scaffolding helpers;
+adopters that haven't run `vendor/bin/testbench workbench:install`
+should either skip `package-boost:install` entirely (the default
+already syncs every supported agent) or hand-edit
+`workbench/config/package-boost.php` after a one-time
+`vendor/bin/testbench vendor:publish --tag=package-boost-config`.
+
+Some shipped skills are Laravel-specific by design
+(`package-development`, `cross-version-laravel-support`,
+`ci-matrix-troubleshooting`). They auto-activate only on prompts that
+mention Laravel-shaped tooling and are otherwise idle, so they cost
+nothing in a framework-agnostic repo.
 
 ## Usage
 
@@ -307,7 +356,7 @@ Disable discovery entirely or skip specific packages via
 
 |                          | Laravel Boost                    | Package Boost                                  |
 |--------------------------|----------------------------------|------------------------------------------------|
-| **For**                  | Laravel applications             | Laravel packages                               |
+| **For**                  | Laravel applications             | Composer packages (Laravel-aware, framework-agnostic supported) |
 | **Runs via**             | `php artisan`                    | `vendor/bin/testbench`                         |
 | **Discovers skills**     | From app + vendor packages       | From `.ai/` + `vendor/*/resources/boost/`      |
 | **Generates guidelines** | Composes from installed packages | Copies `.ai/` + merges vendor contributions    |

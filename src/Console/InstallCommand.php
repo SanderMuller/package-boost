@@ -178,7 +178,10 @@ class InstallCommand extends Command
 
         if ($path === null) {
             $this->components->error(
-                'Cannot resolve workbench config path. `package-boost:install` requires Orchestra Testbench.'
+                '`package-boost:install` requires Orchestra Testbench (Laravel-aware or framework-agnostic packages alike). '
+                . 'Either: install Testbench as a dev dependency and re-run via `vendor/bin/testbench package-boost:install`, '
+                . 'skip install entirely (the zero-config default already syncs all supported agents), '
+                . 'or edit `workbench/config/package-boost.php` by hand to set the `agents` key.'
             );
 
             return self::FAILURE;

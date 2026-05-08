@@ -1,10 +1,12 @@
 {
     "name": "sandermuller/package-boost",
-    "description": "AI-assisted development tooling for Laravel package developers",
+    "description": "AI-assisted development tooling for Composer packages — Laravel-aware and framework-agnostic",
     "keywords": [
         "laravel",
         "package-development",
+        "composer-package",
         "ai",
+        "ai-tooling",
         "boost",
         "testbench"
     ],
