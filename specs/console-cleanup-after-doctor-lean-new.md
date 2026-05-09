@@ -291,12 +291,20 @@ Target: lift `InstallCommand` line coverage from 63.6% → ≥ 90%.
 
 ### Phase 2: `InstallCommand` prompt-path coverage (Priority: HIGH)
 
-- [ ] Add `Prompts::fake([...])` setup helper to
-  `tests/InstallCommandTest.php`.
-- [ ] Add tests 1-4 from §2.5.
-- [ ] Tests — verify line coverage on `InstallCommand` ≥ 90% via
-  `vendor/bin/pest --coverage --min=...` or the existing coverage
-  reporter.
+- [x] ~~Add `Prompts::fake([...])` setup helper~~ — not needed.
+  Laravel's `ConfiguresPrompts::configurePrompts` calls
+  `Prompt::fallbackWhen($this->laravel->runningUnitTests())`, so unit
+  tests automatically take the multiselect fallback (which auto-accepts
+  the supplied default). Faking keystrokes leaves them unconsumed and
+  Mockery throws `InvalidCountException` at teardown.
+- [x] Add tests 1-3 from §2.5: config-wins (`['claude_code', 'cursor']`
+  → defaults respected), boost.json fallback (config null +
+  `boost.json` written → boostImport result persisted), `--no-import`
+  bypass (boost.json present + flag → result ≠ boost's lone entry).
+  Test 4 (empty selection) skipped — fallback path can't yield empty
+  selection deterministically; `--all` already covers `persist(null)`.
+- [x] Tests — `InstallCommand` line coverage 63.6% → **90.5%** via
+  `vendor/bin/pest --coverage --filter=InstallCommand`. 188 passed.
 
 ### Phase 3: Host-frontmatter blocking unification (Priority: MEDIUM, blocks on Open Question 1)
 
@@ -362,8 +370,13 @@ None.
   cleanup — multiple tests touch shared package paths
   (`.claude/skills/`, `CLAUDE.md`, etc.) without isolation. Out of
   scope for this spec; flag as a separate item.
-- Phase 2 (InstallCommand prompt-path coverage) deferred — not
-  attempted in this pass.
+- Phase 2 (InstallCommand prompt-path coverage) landed in a follow-up
+  pass: 3 tests on the resolveDefaults branches lifted coverage from
+  63.6% → 90.5%. Discovered en route that
+  `ConfiguresPrompts::configurePrompts` flips Laravel Prompts into
+  fallback mode under `runningUnitTests()`, so `Prompt::fake([...])`
+  keystrokes never fire — tests instead rely on the auto-accepted
+  default that the fallback returns.
 - Codex adversarial review flagged the absence of a replacement
   blocking gate after option (a) removed shipped-frontmatter from
   doctor exit. Closed by adding a dogfood lint test in

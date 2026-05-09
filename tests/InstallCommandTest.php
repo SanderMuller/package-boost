@@ -253,3 +253,55 @@ it('dedupes and reorders to registry order on --agents=', function (): void {
         // Registry order is claude_code first, cursor second; duplicates collapsed.
         ->and(workbenchConfig())->toContain("'agents' => ['claude_code', 'cursor'],");
 });
+
+it('interactive prompt: uses config(package-boost.agents) as the multiselect default', function (): void {
+    // Config-wins branch in resolveDefaults — non-empty config short-circuits
+    // the boostImport / detectInstalledAgents fallback chain. In unit-test
+    // mode Laravel forces the multiselect fallback (`Prompt::fallbackWhen(
+    // runningUnitTests())`), which auto-accepts the defaults — so the
+    // persisted result equals the configured list without any keystroke
+    // mocking.
+    config()->set('package-boost.agents', ['claude_code', 'cursor']);
+
+    $exit = Artisan::call('package-boost:install');
+
+    expect($exit)->toBe(0)
+        ->and(workbenchAgents())->toBe(['claude_code', 'cursor']);
+});
+
+it('interactive prompt: empty config falls back to boost.json import', function (): void {
+    // boostImport branch: config null + boost.json present → defaults
+    // come from BoostImporter::fromBoost. Filtering against the registry
+    // keeps the prompt free of ghost agents Boost knows but package-boost
+    // doesn't.
+    config()->set('package-boost.agents');
+    File::put(package_path('boost.json'), json_encode(['agents' => ['cursor', 'gemini']], JSON_THROW_ON_ERROR));
+
+    try {
+        $exit = Artisan::call('package-boost:install');
+
+        expect($exit)->toBe(0)
+            ->and(workbenchAgents())->toBe(['cursor', 'gemini']);
+    } finally {
+        File::delete(package_path('boost.json'));
+    }
+});
+
+it('interactive prompt: --no-import skips the boost.json fallback', function (): void {
+    // Even with a present boost.json, --no-import collapses the
+    // boostImport branch to null and falls through to
+    // detectInstalledAgents (and ultimately the all-9 default).
+    // Assertion: the persisted value must NOT equal boost.json's lone
+    // entry — proving boostImport was skipped.
+    config()->set('package-boost.agents');
+    File::put(package_path('boost.json'), json_encode(['agents' => ['cursor']], JSON_THROW_ON_ERROR));
+
+    try {
+        $exit = Artisan::call('package-boost:install', ['--no-import' => true]);
+
+        expect($exit)->toBe(0)
+            ->and(workbenchAgents())->not->toBe(['cursor']);
+    } finally {
+        File::delete(package_path('boost.json'));
+    }
+});
