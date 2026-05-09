@@ -16,6 +16,30 @@ final class SkillFrontmatter
     public const REQUIRED_KEYS = ['name', 'description'];
 
     /**
+     * Filter a lint result down to the issues that should block CI —
+     * i.e. issues under the host's `.ai/skills/` directory only. Shipped
+     * (`resources/boost/skills/`) and third-party vendor skills are
+     * non-blocking: from a downstream consumer's perspective they're
+     * vendor-owned content the operator can't directly fix.
+     *
+     * @param  array<int, array{name: string, path: string, problems: array<int, string>}>  $issues
+     * @return array<int, array{name: string, path: string, problems: array<int, string>}>
+     */
+    public static function filterBlocking(array $issues, string $root): array
+    {
+        $hostPrefix = $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills' . DIRECTORY_SEPARATOR;
+        $blocking = [];
+
+        foreach ($issues as $issue) {
+            if (str_starts_with($issue['path'], $hostPrefix)) {
+                $blocking[] = $issue;
+            }
+        }
+
+        return $blocking;
+    }
+
+    /**
      * Validate every discovered SKILL.md across host + vendor + shipped.
      *
      * @param  array<string, string>  $skills  name => absolute source dir (as returned by SyncSources::skills)

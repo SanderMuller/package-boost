@@ -153,6 +153,24 @@ final class Registry
     }
 
     /**
+     * Read `config('package-boost.agents')` and narrow it to a clean
+     * `array<int, string>` (or `null` when unset / not an array).
+     * Centralises the `is_array → array_filter(is_string)` shape shared
+     * by `Sync`, `Doctor`, and (as the first step of its fallback chain)
+     * `Install`.
+     *
+     * @return ?array<int, string>
+     */
+    public static function configuredNames(): ?array
+    {
+        $configured = config('package-boost.agents');
+
+        return is_array($configured)
+            ? array_values(array_filter($configured, is_string(...)))
+            : null;
+    }
+
+    /**
      * Names supplied by the user that don't correspond to a registered
      * agent. Used by `SyncCommand` to surface typos without breaking
      * sync — `forSelection()` already drops unknowns silently.

@@ -71,3 +71,44 @@ it('strips quoted scalar values', function (): void {
 
     expect(SkillFrontmatter::lint(['quoted' => $dir]))->toBe([]);
 });
+
+it('filterBlocking keeps host .ai/skills/ issues', function (): void {
+    $root = '/abs/host';
+    $issue = ['name' => 'broken', 'path' => '/abs/host/.ai/skills/broken/SKILL.md', 'problems' => ['x']];
+
+    expect(SkillFrontmatter::filterBlocking([$issue], $root))->toBe([$issue]);
+});
+
+it('filterBlocking drops shipped resources/boost/skills/ issues', function (): void {
+    // Host-only rule: package-shipped frontmatter is non-blocking even
+    // inside the dogfood repo. Dogfooding our own shipped skills is
+    // enforced separately, not via the doctor exit code.
+    $root = '/abs/host';
+    $issue = ['name' => 'shipped', 'path' => '/abs/host/resources/boost/skills/shipped/SKILL.md', 'problems' => ['x']];
+
+    expect(SkillFrontmatter::filterBlocking([$issue], $root))->toBe([]);
+});
+
+it('filterBlocking drops third-party vendor issues', function (): void {
+    $root = '/abs/host';
+    $issue = ['name' => 'vendor', 'path' => '/abs/host/vendor/foo/bar/resources/boost/skills/vendor/SKILL.md', 'problems' => ['x']];
+
+    expect(SkillFrontmatter::filterBlocking([$issue], $root))->toBe([]);
+});
+
+it("dogfood: this package's own shipped resources/boost/skills/ pass lint", function (): void {
+    // Companion gate to filterBlocking's host-only rule. Doctor exit no
+    // longer fails on shipped frontmatter (host-only by design — keeps
+    // downstream consumers from failing on vendor-owned content), so
+    // this assertion is the package's own pre-release safety net for
+    // bundled SKILL.md files. Catches a malformed shipped skill before
+    // it ships.
+    $skills = [];
+
+    foreach ((array) glob(package_path('resources/boost/skills/*'), GLOB_ONLYDIR) as $dir) {
+        $skills[basename((string) $dir)] = (string) $dir;
+    }
+
+    expect($skills)->not->toBeEmpty('no shipped skills found — glob path stale?');
+    expect(SkillFrontmatter::lint($skills))->toBe([]);
+});

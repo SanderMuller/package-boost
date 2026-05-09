@@ -8,6 +8,7 @@ use SanderMuller\PackageBoost\Agents\Registry;
 use SanderMuller\PackageBoost\Console\Internal\BoostDetector;
 use SanderMuller\PackageBoost\Console\Internal\DeselectedAgentArtifacts;
 use SanderMuller\PackageBoost\Console\Internal\DoctorReport;
+use SanderMuller\PackageBoost\Console\Internal\FormatOption;
 use SanderMuller\PackageBoost\Console\Internal\LegacyCopilotInstructions;
 use SanderMuller\PackageBoost\Console\Internal\PackageRoot;
 use SanderMuller\PackageBoost\Console\Internal\SkillFrontmatter;
@@ -36,16 +37,15 @@ final class DoctorCommand extends Command
 
     public function handle(): int
     {
-        $formatOption = $this->option('format');
-        $format = is_string($formatOption) ? $formatOption : 'text';
+        $format = FormatOption::read($this);
 
-        if (! in_array($format, ['text', 'json'], true)) {
-            $this->components->error("Invalid --format value '{$format}'; expected 'text' or 'json'.");
+        if (! FormatOption::isSupported($format)) {
+            $this->components->error(FormatOption::invalidMessage($format));
 
             return self::FAILURE;
         }
 
-        $root = $this->resolvePackageRoot();
+        $root = PackageRoot::resolve();
         $report = $this->buildReport($root);
 
         if ($this->option('fix') === true) {
@@ -152,10 +152,7 @@ final class DoctorCommand extends Command
      */
     private function buildReport(string $root, ?array $fix = null): DoctorReport
     {
-        $configured = config('package-boost.agents');
-        $configuredNames = is_array($configured)
-            ? array_values(array_filter($configured, is_string(...)))
-            : null;
+        $configuredNames = Registry::configuredNames();
         $unknown = $configuredNames === null ? [] : Registry::unknownNames($configuredNames);
         $selected = Registry::forSelection($configuredNames);
 
@@ -164,7 +161,7 @@ final class DoctorCommand extends Command
         $boostInstalled = (new BoostDetector($this->getLaravel()))->installed();
 
         $frontmatterIssues = SkillFrontmatter::lint($skills);
-        $hostFrontmatterIssues = $this->filterHostFrontmatter($frontmatterIssues, $root);
+        $hostFrontmatterIssues = SkillFrontmatter::filterBlocking($frontmatterIssues, $root);
 
         return new DoctorReport(
             configuredAgents: $configuredNames,
@@ -186,43 +183,6 @@ final class DoctorCommand extends Command
             gitAttributes: $this->gitAttributesStatus($root),
             fix: $fix,
         );
-    }
-
-    /**
-     * Mirrors `SyncCommand::hasHostFrontmatterIssues` for host-owned
-     * `.ai/skills/` content, plus an additional carve-out for
-     * package-boost's **own** shipped skills (`resources/boost/skills/`):
-     * those are package-maintainer-owned. In this repo they're inside
-     * `$root` and a malformed bundled SKILL.md absolutely should fail
-     * CI; in a downstream consumer they're inside
-     * `vendor/sandermuller/package-boost/` and a failure there means
-     * the consumer needs to upgrade — also a useful signal.
-     *
-     * Third-party `vendor/<other>/<other>/resources/boost/skills/` and
-     * other vendor sources stay non-blocking — those are owned by a
-     * package the operator can't directly fix.
-     *
-     * @param  array<int, array{name: string, path: string, problems: array<int, string>}>  $issues
-     * @return array<int, array{name: string, path: string, problems: array<int, string>}>
-     */
-    private function filterHostFrontmatter(array $issues, string $root): array
-    {
-        $hostPrefix = $root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills' . DIRECTORY_SEPARATOR;
-        $packageShippedPrefix = SyncSources::shippedDir('skills') . DIRECTORY_SEPARATOR;
-
-        // foreach preserves the typed `$issue` shape from the @param above.
-        // A `static fn (array $issue)` closure widens to `array<mixed>` and
-        // tempts Rector to insert a `(string)` cast that PHPStan rejects.
-        $blocking = [];
-
-        foreach ($issues as $issue) {
-            if (str_starts_with($issue['path'], $hostPrefix)
-                || str_starts_with($issue['path'], $packageShippedPrefix)) {
-                $blocking[] = $issue;
-            }
-        }
-
-        return $blocking;
     }
 
     /**
@@ -440,10 +400,5 @@ final class DoctorCommand extends Command
         if (! $report->gitAttributes['managed_block_current']) {
             $this->components->warn('.gitattributes managed block is out of date — run `package-boost:lean`.');
         }
-    }
-
-    private function resolvePackageRoot(): string
-    {
-        return PackageRoot::resolve();
     }
 }

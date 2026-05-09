@@ -450,27 +450,6 @@ it('--fix exits non-zero and reports refusal when the legacy Copilot block has b
     }
 });
 
-it("still blocks on malformed frontmatter in this package's own resources/boost/skills/", function (): void {
-    // package-boost is the maintainer of `resources/boost/skills/` —
-    // a malformed bundled SKILL.md absolutely should fail CI in this
-    // repo. Without the package-shipped carve-out in
-    // filterHostFrontmatter, the host-only relaxation would mask it.
-    $shippedSkillDir = __DIR__ . '/../resources/boost/skills/test-broken-shipped';
-
-    File::ensureDirectoryExists($shippedSkillDir);
-    File::put($shippedSkillDir . '/SKILL.md', "no frontmatter here\n");
-
-    try {
-        $exit = Artisan::call('package-boost:doctor');
-        $output = Artisan::output();
-
-        expect($exit)->toBe(1);
-        expect($output)->toContain('test-broken-shipped');
-    } finally {
-        File::deleteDirectory($shippedSkillDir);
-    }
-});
-
 it('--fix on a Boost-less host emits mcp.attempted=mcp.resolved=laravel-boost-not-installed', function (): void {
     app()->bind('package-boost.boost-detector', static fn (): callable => static fn (): bool => false);
 

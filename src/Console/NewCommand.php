@@ -46,7 +46,7 @@ final class NewCommand extends Command
             return self::FAILURE;
         }
 
-        $root = $this->resolvePackageRoot();
+        $root = PackageRoot::resolve();
         $force = $this->option('force') === true;
 
         return $kind === 'skill'
@@ -104,10 +104,5 @@ final class NewCommand extends Command
         $this->components->info('Run `vendor/bin/testbench package-boost:sync` to propagate.');
 
         return self::SUCCESS;
-    }
-
-    private function resolvePackageRoot(): string
-    {
-        return PackageRoot::resolve();
     }
 }

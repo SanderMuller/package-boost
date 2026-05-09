@@ -34,7 +34,7 @@ class InstallCommand extends Command
 
     public function handle(): int
     {
-        $root = $this->resolvePackageRoot();
+        $root = PackageRoot::resolve();
 
         $this->warnAboutLegacyCopilotInstructions($root);
 
@@ -95,14 +95,10 @@ class InstallCommand extends Command
      */
     private function resolveDefaults(string $root): array
     {
-        $configured = config('package-boost.agents');
+        $names = Registry::configuredNames();
 
-        if (is_array($configured)) {
-            $names = array_values(array_filter($configured, is_string(...)));
-
-            if ($names !== []) {
-                return $names;
-            }
+        if ($names !== null && $names !== []) {
+            return $names;
         }
 
         $boostImport = $this->boostImport($root);
@@ -210,11 +206,6 @@ class InstallCommand extends Command
         }
 
         return \Orchestra\Testbench\workbench_path('config/package-boost.php');
-    }
-
-    private function resolvePackageRoot(): string
-    {
-        return PackageRoot::resolve();
     }
 
     /**

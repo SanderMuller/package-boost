@@ -7,6 +7,7 @@ use SanderMuller\PackageBoost\Agents\Agent;
 use SanderMuller\PackageBoost\Agents\Registry;
 use SanderMuller\PackageBoost\Console\Internal\BoostDetector;
 use SanderMuller\PackageBoost\Console\Internal\DeselectedAgentArtifacts;
+use SanderMuller\PackageBoost\Console\Internal\FormatOption;
 use SanderMuller\PackageBoost\Console\Internal\LegacyCopilotInstructions;
 use SanderMuller\PackageBoost\Console\Internal\PackageRoot;
 use SanderMuller\PackageBoost\Console\Internal\SkillFrontmatter;
@@ -50,12 +51,7 @@ class SyncCommand extends Command
             return $this->selectedAgents;
         }
 
-        $configured = config('package-boost.agents');
-        $names = is_array($configured)
-            ? array_values(array_filter($configured, is_string(...)))
-            : null;
-
-        return $this->selectedAgents = Registry::forSelection($names);
+        return $this->selectedAgents = Registry::forSelection(Registry::configuredNames());
     }
 
     /**
@@ -104,16 +100,15 @@ class SyncCommand extends Command
         $this->selectedAgents = null;
         $this->frontmatterIssues = [];
 
-        $formatOption = $this->option('format');
-        $format = is_string($formatOption) ? $formatOption : 'text';
+        $format = FormatOption::read($this);
 
-        if (! in_array($format, ['text', 'json'], true)) {
-            $this->components->error("Invalid --format value '{$format}'; expected 'text' or 'json'.");
+        if (! FormatOption::isSupported($format)) {
+            $this->components->error(FormatOption::invalidMessage($format));
 
             return self::FAILURE;
         }
 
-        $root = $this->resolvePackageRoot();
+        $root = PackageRoot::resolve();
         $check = $this->option('check') === true;
         $showUnchanged = $this->option('show-unchanged') === true;
 
@@ -224,19 +219,12 @@ class SyncCommand extends Command
     /**
      * Only fail `--check` for issues under the host's `.ai/skills/` —
      * shipped / vendor skills that drift would otherwise block the host's
-     * CI on something they don't control.
+     * CI on something they don't control. See
+     * `SkillFrontmatter::filterBlocking` for the canonical rule.
      */
     private function hasHostFrontmatterIssues(): bool
     {
-        $hostPrefix = $this->resolvePackageRoot() . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . 'skills' . DIRECTORY_SEPARATOR;
-
-        foreach ($this->frontmatterIssues as $issue) {
-            if (str_starts_with($issue['path'], $hostPrefix)) {
-                return true;
-            }
-        }
-
-        return false;
+        return SkillFrontmatter::filterBlocking($this->frontmatterIssues, PackageRoot::resolve()) !== [];
     }
 
     /**
@@ -326,11 +314,6 @@ class SyncCommand extends Command
         );
     }
 
-    private function resolvePackageRoot(): string
-    {
-        return PackageRoot::resolve();
-    }
-
     private function boostInstalled(): bool
     {
         return (new BoostDetector($this->getLaravel()))->installed();
@@ -344,13 +327,12 @@ class SyncCommand extends Command
      */
     private function warnAboutUnknownAgents(): void
     {
-        $configured = config('package-boost.agents');
+        $names = Registry::configuredNames();
 
-        if (! is_array($configured)) {
+        if ($names === null) {
             return;
         }
 
-        $names = array_values(array_filter($configured, is_string(...)));
         $unknown = Registry::unknownNames($names);
 
         if ($unknown === []) {

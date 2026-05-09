@@ -299,14 +299,13 @@ file (when prunable), and the `.gitattributes` managed block — by
 delegating to `package-boost:sync --prune --prune-orphans` and
 `package-boost:lean` in one pass. Exit code is driven by the
 post-fix report: zero when everything resolved, non-zero when
-anything still needs human attention. Frontmatter issues block
-exit only when they live under your host `.ai/skills/` *or* under
-package-boost's own bundled `resources/boost/skills/` (a malformed
-shipped SKILL.md is a real bug — in this repo or in your installed
-version). Third-party vendor SKILL.md issues, `package-boost.agents`
-typos, and skill collisions stay report-only — `--fix` cannot
-resolve them and CI shouldn't be held hostage by upstream skill
-bugs you don't own.
+anything still needs human attention. Frontmatter issues block exit
+only when they live under your host `.ai/skills/` — shipped
+(`resources/boost/skills/`) and third-party vendor SKILL.md issues
+surface as warnings but do not flip exit, so CI isn't held hostage
+by upstream skill bugs you can't fix. `package-boost.agents` typos
+and skill collisions stay report-only for the same reason — `--fix`
+cannot resolve them.
 
 `--fix --format=json` adds a top-level `fix` object recording each
 category's `attempted` (what doctor saw pre-fix) and `resolved`

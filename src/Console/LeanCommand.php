@@ -48,7 +48,7 @@ final class LeanCommand extends Command
 
     public function handle(): int
     {
-        $root = $this->resolvePackageRoot();
+        $root = PackageRoot::resolve();
         $path = $root . DIRECTORY_SEPARATOR . '.gitattributes';
         $current = is_file($path) ? (string) file_get_contents($path) : '';
         $desired = self::renderUpdated($current);
@@ -100,10 +100,5 @@ final class LeanCommand extends Command
         }
 
         return rtrim($current, "\n") . "\n\n" . $block . "\n";
-    }
-
-    private function resolvePackageRoot(): string
-    {
-        return PackageRoot::resolve();
     }
 }
