@@ -1,20 +1,24 @@
 # Package Boost Roadmap
 
 Forward-looking plan. Items may shift based on peer feedback
-(`laravel-fluent-validation`, `laravel-js-store`) or upstream Laravel
-Boost changes. For shipped work, see `CHANGELOG.md`.
+(`laravel-fluent-validation`, `laravel-js-store`, `php-x402`) or
+upstream Laravel Boost changes. For shipped work, see `CHANGELOG.md`.
 
 ## Open
 
-- **`lean-dist` skill** — shipped skill that on-ramps consumers
-  to `stolt/lean-package-validator` (lpv) for `.gitattributes`
-  hygiene, plus an AI-era `.lpv` glob seed (`.ai/`, `.claude/`,
-  `AGENTS.md`, `CLAUDE.md`, `.cursor/`, etc.) that lpv's defaults
-  don't cover. lpv already ships three package-boost-format skills
-  (`creating-` / `updating-` / `validating-gitattributes-file`)
-  picked up by vendor-discovery once installed; this skill
-  handles the install + AI-era patterns + edge-case guard so the
-  three lpv skills can take over the per-command work.
+- **`package-boost:doctor --fix` autoremediation.** Today
+  `doctor` fans out the checks scattered across `sync --check`,
+  `install`, and `lean` and exits non-zero on any failure — but
+  the operator still has to run the remediation command for
+  every category by hand. A `--fix` flag would resolve the
+  mechanically-safe drift in one pass: re-run sync to clear
+  stale generated content, prune deselected-agent orphans,
+  rewrite the managed `.gitattributes` block, and delete the
+  legacy Copilot file. Vendor skill collisions, MCP detection
+  state, and SKILL.md frontmatter issues stay report-only —
+  those need a human decision. Scope: a single new flag on the
+  existing command, no new top-level command, exit code stays
+  `0` when every fix-eligible category resolves cleanly.
 
 ## Ongoing / external
 
@@ -50,6 +54,12 @@ as "why don't we…".
 - **Distinct exit codes for new vs stale drift.** `any drift = exit 1`
   matches the standard CI idiom. No consumer asked for granular
   codes.
+
+- **Per-agent skill opt-in/opt-out.** Today the agent registry is
+  the granularity knob — pick which agents receive the full
+  shipped bundle. Per-skill subsetting per agent multiplies
+  config surface and drift-detection complexity for a use case
+  no consumer has raised.
 
 - **Raising PHP / Laravel floors.** Stay on the widest constraint
   set downstream packages actually use (`php ^8.2`,

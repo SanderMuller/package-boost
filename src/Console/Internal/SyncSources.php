@@ -94,6 +94,22 @@ final class SyncSources
     }
 
     /**
+     * Absolute path to package-boost's own bundled `resources/boost/<kind>`
+     * dir — the "shipped" source. Same value across host (this repo) and
+     * downstream consumers, just rooted differently: in this repo it lives
+     * inside the package root; in a consumer it lives inside
+     * `vendor/sandermuller/package-boost/`.
+     *
+     * Exposed publicly so callers like `DoctorCommand::filterHostFrontmatter`
+     * can recognise package-shipped paths without duplicating the
+     * relative-depth math (which differs per caller's source location).
+     */
+    public static function shippedDir(string $kind): string
+    {
+        return dirname(__DIR__, 3) . '/resources/boost/' . $kind;
+    }
+
+    /**
      * Ordering is load-bearing: later dirs override earlier entries when a
      * skill name collides, and guideline groups concatenate in this order.
      * Shipped → vendor packages (alphabetical) → host `.ai/`, so host always
@@ -104,7 +120,7 @@ final class SyncSources
     private static function dirs(string $root, string $kind): array
     {
         $dirs = array_merge(
-            [dirname(__DIR__, 3) . '/resources/boost/' . $kind],
+            [self::shippedDir($kind)],
             self::vendorDirs($root, $kind),
             [$root . DIRECTORY_SEPARATOR . '.ai' . DIRECTORY_SEPARATOR . $kind],
         );
@@ -137,7 +153,7 @@ final class SyncSources
         // the same directory (e.g. package-boost consumed as its own vendored
         // dep, or a symlinked dev checkout) would duplicate shipped content.
         // Structural guard, independent of the user-configurable exclude list.
-        $shippedReal = realpath(dirname(__DIR__, 3) . '/resources/boost/' . $kind);
+        $shippedReal = realpath(self::shippedDir($kind));
 
         $byPackage = [];
 

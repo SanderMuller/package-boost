@@ -278,13 +278,42 @@ Aggregates the checks otherwise scattered across `--check`,
 configured + effective agents, sync drift counts, SKILL.md
 frontmatter issues, deselected-agent orphans, vendor skill
 collisions, MCP / Boost detection, the legacy Copilot file, and the
-`.gitattributes` managed block. Exits non-zero on any finding.
+`.gitattributes` managed block. Exits non-zero on any blocking
+finding; vendor / shipped frontmatter issues and skill collisions
+are advisory (rendered, but exit-zero) so upstream bugs you can't
+patch don't permablock CI.
 
 ```bash
 vendor/bin/testbench package-boost:doctor --format=json
 ```
 
 JSON variant is stable-shaped (`schema: 1`) and parseable by `jq`.
+
+```bash
+vendor/bin/testbench package-boost:doctor --fix
+```
+
+`--fix` auto-resolves the mechanically-safe categories — sync drift,
+deselected-agent orphans, the legacy `.github/copilot-instructions.md`
+file (when prunable), and the `.gitattributes` managed block — by
+delegating to `package-boost:sync --prune --prune-orphans` and
+`package-boost:lean` in one pass. Exit code is driven by the
+post-fix report: zero when everything resolved, non-zero when
+anything still needs human attention. Frontmatter issues block
+exit only when they live under your host `.ai/skills/` *or* under
+package-boost's own bundled `resources/boost/skills/` (a malformed
+shipped SKILL.md is a real bug — in this repo or in your installed
+version). Third-party vendor SKILL.md issues, `package-boost.agents`
+typos, and skill collisions stay report-only — `--fix` cannot
+resolve them and CI shouldn't be held hostage by upstream skill
+bugs you don't own.
+
+`--fix --format=json` adds a top-level `fix` object recording each
+category's `attempted` (what doctor saw pre-fix) and `resolved`
+(what actually changed). Refusals — for example sync declining to
+prune a Copilot file with user content — surface as
+`{ attempted: true, resolved: false }`, distinguishable from a noop
+(`{ attempted: false, resolved: false }`).
 
 ### `.gitattributes` hygiene
 
