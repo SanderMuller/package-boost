@@ -2,6 +2,17 @@
 
 All notable changes to `package-boost` will be documented in this file.
 
+## Unreleased
+
+### Deprecated
+
+- **`sandermuller/package-boost` is deprecated and split into two successor packages.** Final maintenance entry. The `composer.json` ships `"abandoned": "sandermuller/package-boost-php"` so Composer surfaces a deprecation notice on every `composer install` / `composer update` that resolves this package. README leads with the migration table.
+  - Framework-agnostic Composer-package tooling → `sandermuller/package-boost-php`
+  - Laravel-specific Composer-package tooling → `sandermuller/package-boost-laravel`
+  - Foundation (skill-sync engine, 9-agent fan-out, managed `.gitignore`, FileEmitter contract) → `sandermuller/boost-core` (transitive via either successor)
+  - PHP-application tooling (non-package consumers) → `sandermuller/project-boost`
+  - Existing `composer.lock` references to 0.15.x continue to resolve; no unpublish.
+
 ## 0.15.0 - 2026-05-09
 
 ### Highlights
