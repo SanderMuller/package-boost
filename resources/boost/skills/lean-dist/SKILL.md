@@ -37,7 +37,7 @@ release had a Symfony 8 / Laravel 13 install break, fixed in 5.7.1.
 `composer clear-cache && composer require --dev stolt/lean-package-validator`
 forces fresh Packagist metadata.
 
-After install, `package-boost:sync` discovers lpv's
+After install, `boost sync` discovers lpv's
 `resources/boost/skills/` directory automatically (vendor-skill
 discovery, 0.9.0+). The three lpv skills surface in every selected
 agent's skill dir on the next sync — hand off all command-level

@@ -1,6 +1,6 @@
 ---
 name: skill-authoring
-description: "MUST USE when authoring an AI skill — creating a new SKILL.md, naming a skill, or deciding where one lives. Covers namespacing across host/vendor/shipped skills, auto-activating frontmatter, `.ai/skills/` vs `resources/boost/skills/` choice, and `package-boost:sync` regen. Activates: creating a skill, adding a skill, drafting a SKILL.md, naming a skill, choosing where a skill lives, editing `.ai/skills/**/SKILL.md` or `resources/boost/skills/**/SKILL.md`; mentions: skill, SKILL.md, skill name, skill namespace, skill collision, vendor skill, shipped skill."
+description: "MUST USE when authoring an AI skill — creating a new SKILL.md, naming a skill, or deciding where one lives. Covers namespacing across host/vendor/shipped skills, auto-activating frontmatter, `.ai/skills/` vs `resources/boost/skills/` choice, and `boost sync` regen. Activates: creating a skill, adding a skill, drafting a SKILL.md, naming a skill, choosing where a skill lives, editing `.ai/skills/**/SKILL.md` or `resources/boost/skills/**/SKILL.md`; mentions: skill, SKILL.md, skill name, skill namespace, skill collision, vendor skill, shipped skill."
 ---
 
 # Skill Authoring
@@ -73,7 +73,7 @@ in your project to see the current list.
 Generated outputs in per-agent directories (`.claude/skills/`,
 `.cursor/skills/`, `.agents/skills/`, `.github/skills/`,
 `.junie/skills/`, `.kiro/skills/`) are written by
-`package-boost:sync`. **Never edit those directly** — your edits get
+`boost sync`. **Never edit those directly** — your edits get
 overwritten on the next sync.
 
 Directory name must be kebab-case and match the `name` field in
@@ -169,13 +169,13 @@ Instructions.
 Optional `references/` subdirectory — drop ecosystem-specific or
 deep-dive material there and link from the body. Used by the
 `readme`, `release-notes`, and `upgrading` shipped skills for
-Laravel-package-specific guidance. `package-boost:sync` propagates
+Laravel-package-specific guidance. `boost sync` propagates
 the whole `references/` subtree alongside `SKILL.md`.
 
 ## 5. Run sync after every edit
 
 ```bash
-vendor/bin/testbench package-boost:sync
+vendor/bin/boost sync
 ```
 
 This regenerates the per-agent skill directories. Skipping it leaves
@@ -199,5 +199,5 @@ with the package and the `--check` mode will fail CI if they drift.
 - [ ] Source lives in `.ai/skills/` (host-only) or
       `resources/boost/skills/` (shipped to consumers) — not in any
       generated per-agent dir.
-- [ ] `vendor/bin/testbench package-boost:sync` ran clean.
+- [ ] `vendor/bin/boost sync` ran clean.
 - [ ] Generated files committed alongside the source.

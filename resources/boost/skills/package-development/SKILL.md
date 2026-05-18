@@ -60,7 +60,7 @@ The `.ai/` directory is the source of truth for AI tooling:
 After editing files in `.ai/`, sync to agent directories:
 
 ```bash
-vendor/bin/testbench package-boost:sync
+vendor/bin/boost sync
 ```
 
 This copies skills to every selected agent's skill dir (`.claude/skills/`, `.cursor/skills/`, `.agents/skills/`, `.github/skills/`, `.junie/skills/`, `.kiro/skills/`) and writes guidelines into `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`. Use `package-boost:install` to narrow the agent set if you don't need all 9. Commit the generated files alongside the `.ai/` sources — they ship with the package.
@@ -68,7 +68,7 @@ This copies skills to every selected agent's skill dir (`.claude/skills/`, `.cur
 Verify CI and local state are in sync:
 
 ```bash
-vendor/bin/testbench package-boost:sync --check
+vendor/bin/boost sync --check
 ```
 
 Exits non-zero when generated files drift from sources. Use in CI to catch commits where `.ai/*` was edited but generated files weren't re-synced.
