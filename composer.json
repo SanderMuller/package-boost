@@ -1,6 +1,7 @@
 {
     "name": "sandermuller/package-boost",
-    "description": "AI-assisted development tooling for Composer packages — Laravel-aware and framework-agnostic",
+    "description": "[DEPRECATED — split into sandermuller/package-boost-php (framework-agnostic) + sandermuller/package-boost-laravel (Laravel-specific). See README for migration.] AI-assisted development tooling for Composer packages",
+    "abandoned": "sandermuller/package-boost-php",
     "keywords": [
         "laravel",
         "package-development",

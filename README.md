@@ -1,5 +1,28 @@
 # Package Boost
 
+> [!WARNING]
+> **`sandermuller/package-boost` is deprecated and split into two successor packages.** This repository is in maintenance mode — no new features. Existing installs continue to work; new projects should pick the successor that matches their target.
+>
+> | If you're building... | Use |
+> |---|---|
+> | A framework-agnostic Composer package | [`sandermuller/package-boost-php`](https://github.com/sandermuller/package-boost-php) |
+> | A Laravel-specific Composer package | [`sandermuller/package-boost-laravel`](https://github.com/sandermuller/package-boost-laravel) |
+> | A PHP application (not a package) | [`sandermuller/project-boost`](https://github.com/sandermuller/project-boost) |
+>
+> **Feature migration map:**
+>
+> | Feature | New home |
+> |---|---|
+> | Skill-sync foundation, `.ai/` source layout, 9-agent fan-out, managed `.gitignore` | [`sandermuller/boost-core`](https://github.com/sandermuller/boost-core) (transitive via any successor) |
+> | `package-development`, `cross-version-laravel-support`, `ci-matrix-troubleshooting`, `lean-dist`, `skill-authoring`, `readme`, `release-notes`, `upgrading` skills | `package-boost-php` |
+> | Laravel-specific package skills (Boost-MCP integration, `McpJsonEmitter`) | `package-boost-laravel` |
+>
+> **Migration:** `composer remove sandermuller/package-boost && composer require --dev sandermuller/package-boost-php` (and add `sandermuller/package-boost-laravel` alongside if your package targets Laravel). Skills + guidelines you authored under `.ai/` keep working unchanged — both successors consume the same source layout.
+>
+> The legacy 0.15.x tag stays on Packagist for existing `composer.lock` references. No further releases planned. Issues should be filed against the appropriate successor repo.
+
+---
+
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/sandermuller/package-boost.svg?style=flat-square)](https://packagist.org/packages/sandermuller/package-boost)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/package-boost/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/sandermuller/package-boost/actions?query=workflow%3Arun-tests+branch%3Amain)
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/sandermuller/package-boost/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/sandermuller/package-boost/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
